@@ -1,0 +1,20 @@
+{
+    "collab_server" : "",
+    "contents" : "# R_Exercise-Graphs.R\n#\n# Purpose:  Exercises for working with graphs in R.\n#\n# Version: 0.0\n#\n# Date:    2016  02  25\n# Author:  Boris Steipe\n#\n# V 0.1    First code\n#\n# TODO:\n#\n#\n# == HOW TO WORK WITH THIS FILE ======================================\n#\n#  Go through this script line by line to read and understand the\n#  code. Execute code by selecting it and typing <cmd><enter>. Edit it\n#  as required, experiment and play. DO NOT simply source() this whole\n#  file! If there are portions you don't understand, use R's help\n#  system, google for an answer, or ask me. Don't continue if you\n#  don't understand what's going on. That's not how it works ...\n#\n# ====================================================================\n\n\" Introduction:\n  ...\n\"\n\n\n# ====================================================================\n#        PART ONE: REVIEW\n# ====================================================================\n\n\n\n\n# == SECTION =========================================================\n\n\n# == Subsection\n\n# Continue ...\n\n\n\n\n\n\n\n\n# ====================================================================\n#        APPENDIX: OUTLOOK\n# ====================================================================\n\"There are many more functions for ... that this tutorial did not cover. You should know about the following. Look up the function and write a short bit of example code that uses it:\"\n\n?subset\n?sweep\n?with     # ... and within()\n\n\"Then you should know about the following packages. Open the vignette and browse through it. You should know be able to come up with least one use-case where the package functions would be useful:\n\n   https://cran.r-project.org/web/packages/magrittr/\n\"\n\n\n\n\n# [END]\n",
+    "created" : 1456426846324.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "4124498256",
+    "id" : "EBDC773D",
+    "lastKnownWriteTime" : 1456427277,
+    "last_content_update" : 1456427277923,
+    "path" : "~/Documents/03.COMPUTING/11-R/R_Exercises/R_Exercise-Graphs/R_Exercise-Graphs.R",
+    "project_path" : "R_Exercise-Graphs.R",
+    "properties" : {
+    },
+    "relative_order" : 3,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}
