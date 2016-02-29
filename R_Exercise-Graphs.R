@@ -365,9 +365,40 @@ Now explore some more:
 
 - Find the largest cliques with largest_cliques(). Pick one of the proteins and find out what it is (you can simply google for it). Is this expected?
 
-- Find the nodes with the 10 - highest betweenness centralities. Use centr_betw() to calculate the values, V() to get the names, and how many nodes there are. The N - 10 highest ranked nodes is what you are looking for. Get the list of IDs. Then find what these proteins are...
+- Find the nodes with the 10 - highest betweenness centralities. Use centr_betw() to calculate the values, V() to get the names, and how many nodes there are. The N - 10 highest ranked nodes is what you are looking for. Get the list of IDs. Then find what these proteins are..."
 
-... are you surprised? (I am!)
+
+# == biomaRt =========================================================
+
+"IDs are just labels, but for _bio_informatics we need to learn more about the biological function of the genes or proteins  that we retrieve via graph data mining. biomaRt is the tool of choice. It's a package distributed by the bioconductor project. This here is not a biomaRt tutorial (that's for another day), simply a few lines of sample code to get you started on the specific use case of retrieving descriptions for ensembl protein IDs."
+
+
+if (!require(biomaRt)) {
+  source("http://bioconductor.org/biocLite.R")
+  biocLite("biomaRt")
+  library("biomaRt")
+}
+
+ensembl <- useMart("ensembl", dataset="hsapiens_gene_ensembl")
+filters <- listFilters(ensembl)
+attributes <- listAttributes(ensembl)
+
+filters[grep("ENSP", filters$description), ]
+
+attributes[grep("symbol", attributes$description, ignore.case=TRUE), ]
+attributes[grep("description", attributes$description, ignore.case=TRUE), ]
+
+getBM(filters = "ensembl_peptide_id",
+      attributes = c("hgnc_symbol",
+                     "wikigene_description",
+                     "interpro_description",
+                     "phenotype_description"),
+      values = "ENSP00000000442",
+      mart = ensembl)
+
+"That should be enough to show you the way.
+
+So what are the proteins with the ten highest betweenness centralities? ... are you surprised? (I am!)
 
 Pick ten random proteins for comparison:
 "
