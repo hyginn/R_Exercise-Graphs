@@ -24,6 +24,7 @@
 # ====================================================================
 
 " This tutorial covers basic concepts of graph theory and analysis in R. You should have typed init() to configure some utilities in the background.
+
 "
 
 
