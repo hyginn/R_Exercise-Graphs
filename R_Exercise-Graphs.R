@@ -2,15 +2,19 @@
 #
 # Purpose:  Exercises for working with graphs in R.
 #
-# Version: 1.0
+# Version: 1.2
 #
 # Date:    2016  02  28
 # Author:  Boris Steipe
 #
+# V 1.2    Typos
+# V 1.1    Added a biomaRt section
 # V 1.0    First code
 #
 # TODO:
-#
+#  - try some label propagation
+#  - compare networks from different sources
+#  - create a fusion network
 #
 # == HOW TO WORK WITH THIS FILE ======================================
 #
@@ -165,7 +169,7 @@ iG <- graph_from_adjacency_matrix(G)
 summary(iG)
 
 "Have a look at what the output IGRAPH DN-- 20 34 -- means: study the help page"
-?print_igraph
+?print.igraph
 
 mode(iG)
 class(iG)
@@ -177,7 +181,7 @@ As with many R objects, loading the package provides special functions that can 
 print(iG)
 plot(iG)
 
-"... where plot() allows the usual flexibility of fine-tuning the plot. We first layout the node coordinates with the Fruchtermann-Reingold algorithm - a force-directed layout that applies an ettractive potential along edges (which oulls nodes together) and a repulsive potential to nodes (so they don't overlap). Note the use of the degree() function to color and scale nodes and labels by degree and the use of the V() function to retrieve the vertex names. See ?plot.igraph for details."
+"... where plot() allows the usual flexibility of fine-tuning the plot. We first layout the node coordinates with the Fruchtermann-Reingold algorithm - a force-directed layout that applies an ettractive potential along edges (which pulls nodes together) and a repulsive potential to nodes (so they don't overlap). Note the use of the degree() function to color and scale nodes and labels by degree and the use of the V() function to retrieve the vertex names. See ?plot.igraph for details."
 
 iGxy <- layout_with_fr(iG)   # calculate layout coordinates
 
@@ -299,7 +303,7 @@ plot(log(degree(gBA)), log(dDeg[degree(gBA)]))
 
 "This plot gives a nearly straight line for the preferential attachment model.
 
-While one may attempt to interpret the parameters of these plots - slopes, exponents, intercepts ... they are really most useful as sensitive measures to compare a biological network with a random, synthetic network to genrate hypotheses regarding which TYPE of model could be underlying our observation.
+While one may attempt to interpret the parameters of these plots - slopes, exponents, intercepts ... they are really most useful as sensitive measures to compare a biological network with a random, synthetic network to generate hypotheses regarding which TYPE of model could be underlying our observation.
 "
 
 
