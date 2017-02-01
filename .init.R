@@ -2,6 +2,9 @@
 # Functions to initialize this Exercise session
 # Boris Steipe
 # ====================================================================
+
+source(".utilities.R")
+
 file.copy(list.files("./assets", full.names=TRUE), tempdir())
 
 panelViewer <- getOption("viewer")
