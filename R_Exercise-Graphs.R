@@ -2,97 +2,178 @@
 #
 # Purpose:  Exercises for working with graphs in R.
 #
-# Version: 1.2
+# Version: 1.3
 #
 # Date:    2016  02  28
 # Author:  Boris Steipe
 #
+# V 1.3    Update from 2016 "Function" code and heat-diffusion example
 # V 1.2    Typos
 # V 1.1    Added a biomaRt section
 # V 1.0    First code
 #
 # TODO:
 #  - try some label propagation
+#  - storing extra annotations
 #  - compare networks from different sources
 #  - create a fusion network
+#  - graph output formats
+#  - demonstrate igraph / cytoscape interface
+#  - More network visualization
+#    https://rpubs.com/kateto/netviz
+#    http://kateto.net/networks-r-igraph
+#  - Biofabric and Hive-plots
+#  http://stackoverflow.com/questions/22453273/how-to-visualize-a-large-network-in-r
+#  http://datablick.com/2015/05/13/comb-the-hairball-with-biofabric-in-tableau-by-chris-demartini/
+#  http://datablick.com/2015/04/13/circular-and-hive-plot-network-graphing-in-tableau-by-chris-demartini/
+#
+#  - Add GO analysis?
 #
 # == HOW TO WORK WITH THIS FILE ======================================
 #
 #  Go through this script line by line to read and understand the
-#  code. Execute code by selecting it and typing <cmd><enter>. Edit it
-#  as required, experiment and play. DO NOT simply source() this whole
-#  file! If there are portions you don't understand, use R's help
-#  system, google for an answer, or ask me. Don't continue if you
-#  don't understand what's going on. That's not how it works ...
+#  code. Execute code by typing <cmd><enter>. When nothing is
+#  selected, that will execute the current line and move the cursor to
+#  the next line. You can also select more than one line, e.g. to
+#  execute a block of code, or less than one line, e.g. to execute
+#  only the core of a nested expression.
 #
-# ====================================================================
+#  Edit code, as required, experiment with options, or just play.
+#  Especially play.
+#
+#  DO NOT simply source() this whole file!
+#
+#  If there are portions you don't understand, use R's help system,
+#  Google for an answer, or ask me. Don't continue if you don't
+#  understand what's going on. That's not how it works ...
+#
+#
+# ==============================================================================
 
-" This tutorial covers basic concepts of graph theory and analysis in R. You should have typed init() to configure some utilities in the background.
-
-"
-
-
-# == INITIALIZATION ==================================================
-
-source("utilities.R") # load a few convenience functions
+# This tutorial covers basic concepts of graph theory and analysis in R. You
+# should have typed init() to configure some utilities in the background.
 
 
-# ====================================================================
+# ==============================================================================
 #        PART ONE: REVIEW
-# ====================================================================
-"I assume you'll have read the Pavlopoulos review of graph theory concepts. Let's explore some of the ideas by starting with a small random graph."
+# ==============================================================================
 
-set.seed(112358)
+# I assume you'll have read the Pavlopoulos review of graph theory concepts.
+# Let's explore some of the ideas by starting with a small random graph."
+
+
+# To begin let's write a little function that will create random "gene" names;
+# there's no particular purpose to this other than to make our graphs look a
+# little more like what we would find in a publication ...
+makeRandomGenenames <- function(N) {
+  nam <- character()
+  while (length(nam) < N) {
+    a <- paste(c(sample(LETTERS, 1), sample(letters, 2)),
+               sep="", collapse="") # three letters
+    n <- sample(1:9, 1)             # one number
+    nam[length(nam) + 1] <- paste(a, n, sep="") # store in vector
+    nam <- unique(nam)   # delete if this was a duplicate
+  }
+  return(nam)
+}
 
 N <- 20
-# create a vector of N random node names
-Nnames <- ABC.rSyll(N)
-Nnames
 
-# create an edge matrix with a given node-edge probability.
+set.seed(112358)
+( Nnames <- makeRandomGenenames(N) )
 
-G <- matrix(numeric(N * N), ncol = N)
-rownames(G) <- Nnames
-colnames(G) <- Nnames
-pEdge <- 0.06
-for (iRow in 1:N-1) {
-  for (iCol in (iRow+1):N) {
-    if (runif(1) < pEdge) {
-      G[iRow, iCol] <- 1
-      G[iCol, iRow] <- 1
+# One way to represent graphs in a computer is as an "adjacency matrix". In this
+# matrix, each row and each column represents a node, and the cell at the
+# intersection of a row and column contains a value/TRUE if there is an edge,
+# 0/FALSE otherwise. It's easy to see that an undirected graph has a symmetric
+# adjacency matrix (i, j) == (j, i); and we can put values other than {1, 0}
+# into a cell if we want to represent a weighted edge.
+
+# At first, lets create a random graph: let's say a pair of nodes has
+# probability p <- 0.1 to have an edge, and our graph is symmetric and has no
+# self-edges. We use our Nnames as node labels, but I've written the function so
+# that we could also just ask for any number of un-named nodes, we'll use that later.
+
+makeRandomGraph <- function(nam, p = 0.1) {
+  # nam: either a character vector of unique names, or a single
+  #        number that will be converted into a vector of integers.
+  # p:   probability that a random pair of nodes will have an edge.
+  #
+  # Value: an adjacency matrix
+  #
+  if (is.numeric(nam) && length(nam) == 1) { # if nam is  a single number ...
+    nam <- as.character(1:nam)
+  }
+  N <- length(nam)
+  G <- matrix(numeric(N * N), ncol = N)  # The adjacency matrix
+  rownames(G) <- nam
+  colnames(G) <- nam
+  for (iRow in 1:(N-1)) { # Note how we make sure iRow != iCol
+    for (iCol in (iRow+1):N) {
+      if (runif(1) < p) {  # runif() creates uniform random numbers
+        # between 0 and 1
+        G[iRow, iCol] <- 1   # row, col !
+        G[iCol, iRow] <- 1   # col, row !
+      }
     }
   }
+  return(G)
 }
-G
 
-ABC.fig("randGraphSample.png") # We'll learn to plot graphs later ...
+set.seed(112358)
+( G <- makeRandomGraph(Nnames, p = 0.09) )
 
-"The simplest descriptor of a graph are the number of nodes, edges, and the degree-distribution. In our example, the number of nodes was given: N; the number of edges can easily be calculated from the adjacency matrix. In our matrix, we have entered 1 for every edge. Thus we simply sum over the matrix:"
-sum(G)
 
-"Is that correct? Is that what you see in the plot?"
+# Listing the matrix is not very informative - we should plot this graph. We'll
+# go into more details of the igraph package a bit later, for now we just use it
+# to plot:
 
-"Yes and no: we entered every edge twice: once for a node [i,j], and again for the combination [j, i]. Whether that is correct depends on what exactly we want to do with the matrix. If these were directed edges, we would need to keep track of them separately. Since we didn't intend them to be directed, we'll just divide the number of edges by 2. Why didn't we simply use an upper-triangular matrix? Because then we need to keep track of the ordering of edges if we want to know whether a particular edge exists or not. For example we could sort the nodes alphabetically, and make sure we always query a pair in alphabetical order. Then a triangular matrix would be efficient.
+if (!require(igraph)) {
+  install.packages("igraph")
+  library(igraph)
+}
 
-What about the degree distribution? We can get that simply by summing over the rows (or the columns):"
+iG <- graph_from_adjacency_matrix(G)
+iGxy <- layout_with_graphopt(iG, charge=0.001)   # calculate layout coordinates
 
-rowSums(G)
 
-rs <- rowSums(G)
-brk <- seq(min(rs)-0.5, max(rs)+0.5, by=1)
-hist(rs, breaks=brk, col=ABC.pal(length(brk)))
+# The igraph package adds its own function to the collection of plot()
+# functions; R makes the selection which plot function to use based on the class
+# of the object that we request to plot. This plot function has parameters
+#  layout - the x,y coordinates of the nodes;
+#  vertex.color - which I define to color by node-degree
+#  vertex size - which I define to increase with node-degree
+#  vertex.label - which I set to use our Nnames vector
 
-"The degree distribution is actually quite an important descriptor of graphs, since it is very sensitive to the generating mechanism. For biological networks, that is one of the key questions we are interested in: how was the network formed?
+oPar <- par(mar= rep(0,4)) # Turn margins off
+plot(iG,
+     layout = iGxy,
+     rescale = FALSE,
+     xlim = c(min(iGxy[,1]), max(iGxy[,1])) * 1.1,
+     ylim = c(min(iGxy[,2]), max(iGxy[,2])) * 1.1,
+     vertex.color=heat.colors(max(degree(iG)+1))[degree(iG)+1],
+     vertex.size = 800 + (150 * degree(iG)),
+     vertex.label = as.character(degree(iG)/2),
+     #     vertex.label = Nnames,
+     edge.arrow.size = 0)
+par(oPar)  # reset plot window
 
-I think you can easily implement measures such as total connectivity or graph density. Many more functions can be found in graph analysis packages, such as the iGraph package that we will use below.
-"
-# ====================================================================
+
+# ==============================================================================
 #        PART TWO: COMPUTING WITH GRAPHS
-# ====================================================================
+# ==============================================================================
 
-"To get a better feel for computing with graphs, let's write a simple algorithm: counting the number of connected components in the graph. A subgraph is connected if there is a path from any node to any other. As the image above showed you, our graph G has four connected components.
+# To get a better feel for computing with graphs, let's write a simple
+# algorithm: counting the number of connected components in the graph. A
+# subgraph is connected if there is a path from any node to any other. As the
+# image above showed you, our graph G has four connected components.
 
-The algorithm employs a simple breadth-first search: we start at a node and initialize our first connected component with it. Then we add all its neigbors to the connected component. Then their neighbors, until there are none left to add. If there are remaining nodes that have not yet been processed, they must be part of another component. We initialize another component and repeat until all nodes have been processed."
+# The algorithm employs a simple breadth-first search: we start at a node and
+# initialize our first connected component with it. Then we add all its neigbors
+# to the connected component. Then their neighbors, until there are none left to
+# add. If there are remaining nodes that have not yet been processed, they must
+# be part of another component. We initialize another component and repeat until
+# all nodes have been processed.
 
 # To write this, we need three data structures:
 components <- list()             # A list to store the components of G
@@ -133,16 +214,27 @@ for (node in rownames(G)) {                 # Process each node.
   }
 }
 
-"A brief note on using queues in R:
+# A brief note on using queues in R:
 
-R is a functional language. In clean R code, functions do not have side effects. In my experience this really makes a lot of difference for writing bug-free code that is easy to read. But sometimes this means we have to take extra steps. For example, some languages have functions to push() and pop() elements on/off stacks - or shift()/unshift(), or enqueue(), dequeue() elements from a queue. But a dequeue operation does two things: it retrieves a value AND it modifies the queue. In R, this normally requires two statements - that's the way we wrote it above. That's fine because we really DO make two changes to our data. But if you feel you MUST have a function that does this in a single expression, this can be done. See:
-   https://gist.github.com/leeper/d6d085ac86d1e006167e  and
-   https://gist.github.com/mpettis/b7bfeff282e3b052684f also
-   https://www.researchgate.net/post/What_is_the_queue_data_structure_in_R
-Of course you could also hold a value and an array in a list that you modify with a single function. So there are ways to wrap this into one expression. But knowing that you CAN do this, doesn't mean you SHOULD.
+# R is a functional language. In clean R code, functions do not have side
+# effects. In my experience this really makes a lot of difference for writing
+# bug-free code that is easy to read. But sometimes this means we have to take
+# extra steps. For example, some languages have functions to push() and pop()
+# elements on/off stacks - or shift()/unshift(), or enqueue(), dequeue()
+# elements from a queue. But a dequeue operation does two things: it retrieves a
+# value AND it modifies the queue. In R, this normally requires two statements -
+# that's the way we wrote it above. That's fine because we really DO make two
+# changes to our data. But if you feel you MUST have a function that does this
+# in a single expression, this can be done. See:
+# https://gist.github.com/leeper/d6d085ac86d1e006167e  and
+# https://gist.github.com/mpettis/b7bfeff282e3b052684f also
+# https://www.researchgate.net/post/What_is_the_queue_data_structure_in_R Of
+# course you could also hold a value and an array in a list that you modify with
+# a single function. So there are ways to wrap this into one expression. But
+# knowing that you CAN do this, doesn't mean you SHOULD.
 
-Now let's look at the results:
-"
+# Now let's look at the results:
+
 
 unlist(lapply(components, length))  # size of each component
 sizes <- unlist(lapply(components, length))
@@ -151,37 +243,334 @@ mean(sizes)                         # average size
 sd(sizes)                           # sd of size
 components                          # the actual components
 
-"So far so good, and if you want to practice coding, you could perhaps write your own implementation of Dijkstra's algorithm to find shortest paths (https://en.wikipedia.org/wiki/Dijkstra's_algorithm). But of course most graph algorithms of interest are available in an R package. There are several graph packages in R, but currently the package of choice seems to be iGraph."
+# So far so good, and if you want to practice coding, you could perhaps write
+# your own implementation of Dijkstra's algorithm to find shortest paths
+# (https://en.wikipedia.org/wiki/Dijkstra's_algorithm). But of course most graph
+# algorithms of interest are available in an R package. There are several graph
+# packages in R, but currently the package of choice seems to be iGraph."
 
-# ====================================================================
-#        PART THREE: THE igraph PACKAGE
-# ====================================================================
 
-if (!require(igraph)) {
-  install.packages("igraph")
-  library(igraph)
+
+# ==============================================================================
+#        PART TWO: DEGREE DISTRIBUTIONS
+# ==============================================================================
+
+
+
+
+
+# The simplest descriptor of a graph are the number of nodes, edges, and the
+# degree-distribution. In our example, the number of nodes was given: N; the
+# number of edges can easily be calculated from the adjacency matrix. In our
+# matrix, we have entered 1 for every edge. Thus we simply sum over the matrix:
+sum(G)
+
+# Is that correct? Is that what you see in the plot?
+
+# Yes and no: we entered every edge twice: once for a node [i,j], and again for
+# the node [j, i]. Whether that is correct depends on what exactly we
+# want to do with the matrix. If these were directed edges, we would need to
+# keep track of them separately. Since we didn't intend them to be directed,
+# we could divide the number of edges by 2. Why didn't we simply use an
+# upper-triangular matrix? Because then we need to keep track of the ordering of
+# edges if we want to know whether a particular edge exists or not. For example
+# we could sort the nodes alphabetically, and make sure we always query a pair
+# in alphabetical order. Then a triangular matrix would be efficient.
+
+# What about the degree distribution? We can get that simply by summing over the
+# rows (or the columns):"
+
+rowSums(G)  # check this against the plot!
+
+# Let's  plot the degree distribution in a histogram:
+rs <- rowSums(G)
+brk <- seq(min(rs)-0.5, max(rs)+0.5, by=1)  # define breaks for the histogram
+hist(rs, breaks=brk, col="#A5CCF5",
+     xlim = c(-1,8), xaxt = "n",
+     main = "Node degrees", xlab = "Degree", ylab = "Number")  # plot histogram
+axis(side = 1, at = 0:7)
+
+# Note: I don't _have_ to define breaks, the hist() function usually does so
+# quite well, automatically. But for this purpose I want the columns of the
+# histogram to represent exactly one node-degree difference.
+
+# A degree distribution is actually quite an important descriptor of graphs,
+# since it is very sensitive to the generating mechanism. For biological
+# networks, that is one of the key questions we are interested in: how was the
+# network formed?
+
+# Let's simulate a few graphs that are a bit bigger to get a better sense of
+# their degree distributions:
+#
+
+# === random graph
+
+
+set.seed(31415927)
+G200 <- makeRandomGraph(200, p = 0.015)
+iG200 <- graph_from_adjacency_matrix(G200)
+iGxy <- layout_with_graphopt(iG200, charge=0.0001) # calculate layout coordinates
+
+oPar <- par(mar= rep(0,4)) # Turn margins off
+plot(iG200,
+     layout = iGxy,
+     rescale = FALSE,
+     xlim = c(min(iGxy[,1]), max(iGxy[,1])) * 1.1,
+     ylim = c(min(iGxy[,2]), max(iGxy[,2])) * 1.1,
+     vertex.color=heat.colors(max(degree(iG200)+1))[degree(iG200)+1],
+     vertex.size = 200 + (30 * degree(iG200)),
+     vertex.label = "",
+     edge.arrow.size = 0)
+par(oPar)
+
+# This graph has thirteen singletons and one large, connected component. Many
+# biological graphs look approximately like this.
+
+# Calculate degree distributions
+dg <- degree(iG200)/2   # here, we use the iGraph function degree()
+# not rowsums() from base R.
+brk <- seq(min(dg)-0.5, max(dg)+0.5, by=1)
+hist(dg, breaks=brk, col="#A5CCF5",
+     xlim = c(-1,11), xaxt = "n",
+     main = "Node degrees", xlab = "Degree", ylab = "Number")  # plot histogram
+axis(side = 1, at = 0:10)
+
+
+
+# Note the characteristic peak of this distribution: this is not "scale-free". Here is a log-log plot of frequency vs. degree-rank:
+
+(freqRank <- table(dg))
+plot(log10(as.numeric(names(freqRank)) + 1),
+     log10(as.numeric(freqRank)), type = "b",
+     pch = 21, bg = "#A5CCF5",
+     xlab = "log(Rank)", ylab = "log(frequency)",
+     main = "200 nodes in a random network")
+
+# === scale-free graph (Barabasi-Albert)
+
+# What does one of those intriguing "scale-free" distributions look like? The
+# iGraph package has a function to make random graphs according to the
+# Barabasi-Albert model of scale-free graphs. It is: sample_pa(), where pa
+# stands for "preferential attachment", one type of process that will yield
+# scale-free distributions.
+
+
+set.seed(31415927)
+GBA <- sample_pa(200, power = 0.8)
+
+iGxy <- layout_with_graphopt(GBA, charge=0.0001) # calculate layout coordinates
+
+oPar <- par(mar= rep(0,4)) # Turn margins off
+plot(GBA,
+     layout = iGxy,
+     rescale = FALSE,
+     xlim = c(min(iGxy[,1]), max(iGxy[,1])) * 1.1,
+     ylim = c(min(iGxy[,2]), max(iGxy[,2])) * 1.1,
+     vertex.color=heat.colors(max(degree(GBA)+1))[degree(GBA)+1],
+     vertex.size = 200 + (30 * degree(GBA)),
+     vertex.label = "",
+     edge.arrow.size = 0)
+par(oPar)
+
+# This is a very obviously different graph! Some biological networks have
+# features that look like that - but in my experience the hub nodes are usually
+# not that distinct. But then again, that really depends on the parameter
+# "power". Feel encouraged to change "power" and get a sense for what difference
+# this makes. Also: note that the graph has only a single component.
+
+# What's the degree distribution of this graph?
+(dg <- degree(GBA))
+brk <- seq(min(dg)-0.5, max(dg)+0.5, by=1)
+hist(dg, breaks=brk, col="#A5D5CC",
+     xlim = c(0,30), xaxt = "n",
+     main = "Node degrees 200 nodes PA graph",
+     xlab = "Degree", ylab = "Number")
+axis(side = 1, at = seq(0, 30, by=5))
+
+# Most nodes have a degree of 1, but one node has a degree of 28.
+
+(freqRank <- table(dg))
+plot(log10(as.numeric(names(freqRank)) + 1),
+     log10(as.numeric(freqRank)), type = "b",
+     pch = 21, bg = "#A5F5CC",
+     xlab = "log(Rank)", ylab = "log(frequency)",
+     main = "200 nodes in a preferential-attachment network")
+
+# Sort-of linear, but many of the higher ranked nodes have a frequency of only
+# one. That behaviour smooths out in larger graphs:
+#
+X <- sample_pa(100000, power = 0.8)  # 100,000 nodes
+freqRank <- table(degree(X))
+plot(log10(as.numeric(names(freqRank)) + 1),
+     log10(as.numeric(freqRank)), type = "b",
+     xlab = "log(Rank)", ylab = "log(frequency)",
+     pch = 21, bg = "#A5F5CC",
+     main = "100,000 nodes in a random, scale-free network")
+rm(X)
+
+# === Random geometric graph
+
+# Finally, let's simulate a random geometric graph and look at the degree
+# distribution. Remember: these graphs have a high probability to have edges
+# between nodes that are "close" together - an entriely biological notion.
+
+# We'll randomly place our nodes in a box. Then we'll define the
+# probability for two nodes to have an edge to be a function of their distance.
+
+# Here is a function that makes such graphs. iGraph has sample_grg(), which
+# connects nodes that are closer than a cutoff, the function I give you below is
+# a bit more interesting since it creates edges according to a probability that
+# is determined by a generalized logistic function of the distance. This
+# sigmoidal function gives a smooth cutoff and creates more "natural" graphs.
+# Otherwise, the function is very similar to the random graph function, except
+# that we output the "coordinates" of the nodes together with the adjacency
+# matrix. Lists FTW.
+#
+makeRandomGeometricGraph <- function(nam, B = 25, Q = 0.001, t = 0.6) {
+  # nam: either a character vector of unique names, or a single
+  #        number that will be converted into a vector of integers.
+  # B, Q, t:   probability that a random pair (i, j) of nodes gets an
+  #              edge determined by a generalized logistic function
+  #              p <- 1 - 1/((1 + (Q * (exp(-B * (x-t)))))^(1 / 0.9)))
+  #
+  # Value: a list with the following components:
+  #        G$mat : an adjacency matrix
+  #        G$nam : labels for the nodes
+  #        G$x   : x-coordinates for the nodes
+  #        G$y   : y-coordinates for the nodes
+  #
+  nu <- 1  # probably not useful to change
+  G <- list()
+
+  if (is.numeric(nam) && length(nam) == 1) {
+    nam <- as.character(1:nam)
+  }
+  G$nam <- nam
+  N <- length(G$nam)
+  G$mat <- matrix(numeric(N * N), ncol = N)  # The adjacency matrix
+  rownames(G$mat) <- G$nam
+  colnames(G$mat) <- G$nam
+  G$x <- runif(N)
+  G$y <- runif(N)
+  for (iRow in 1:(N-1)) { # Same principles as in makeRandomGraph()
+    for (iCol in (iRow+1):N) {
+      # geometric distance ...
+      d <- sqrt((G$x[iRow] - G$x[iCol])^2 +
+                  (G$y[iRow] - G$y[iCol])^2)  # Pythagoras
+      # distance dependent probability
+      p <- 1 - 1/((1 + (Q * (exp(-B * (d-t)))))^(1 / nu))
+      if (runif(1) < p) {
+        G$mat[iRow, iCol] <- 1
+        G$mat[iCol, iRow] <- 1
+      }
+    }
+  }
+  return(G)
 }
+
+# Getting the parameters of a generalized logistic right takes a bit of
+# experimenting. If you are interested, you can try a few variations. Or you can
+# look up the function at
+# https://en.wikipedia.org/wiki/Generalised_logistic_function
+
+# This function computes generalized logistics ...
+# genLog <- function(x, B = 25, Q = 0.001, t = 0.5) {
+#     # generalized logistic (sigmoid)
+#     nu <- 1
+#     return(1 - 1/((1 + (Q * (exp(-B * (x-t)))))^(1 / nu)))
+# }
+#
+# ... and this code plots p-values over the distances we could encouter between
+# our nodes: from 0 to sqrt(2) i.e. the diagonal of the unit sqaure in which we
+# will place our nodes.
+# x <- seq(0, sqrt(2), length.out = 50)
+# plot(x, genLog(x), type="l", col="#AA0000", ylim = c(0, 1),
+#      xlab = "d", ylab = "p(edge)")
+
+# 200 node random geomteric graph
+set.seed(112358)
+GRG <- makeRandomGeometricGraph(200, t=0.4)
+
+
+iGRG <- graph_from_adjacency_matrix(GRG$mat)
+iGRGxy <- cbind(GRG$x, GRG$y) # use our node coordinates for layout
+
+oPar <- par(mar= rep(0,4)) # Turn margins off
+plot(iGRG,
+     layout = iGRGxy,
+     rescale = FALSE,
+     xlim = c(min(iGRGxy[,1]), max(iGRGxy[,1])) * 1.1,
+     ylim = c(min(iGRGxy[,2]), max(iGRGxy[,2])) * 1.1,
+     vertex.color=heat.colors(max(degree(iGRG)+1))[degree(iGRG)+1],
+     vertex.size = 0.1 + (0.1 * degree(iGRG)),
+     vertex.label = "",
+     edge.arrow.size = 0)
+par(oPar)
+
+# degree distribution:
+(dg <- degree(iGRG)/2)
+brk <- seq(min(dg)-0.5, max(dg)+0.5, by=1)
+hist(dg, breaks=brk, col="#FCD6E2",
+     xlim = c(0, 25), xaxt = "n",
+     main = "Node degrees: 200 nodes RG graph",
+     xlab = "Degree", ylab = "Number")
+axis(side = 1, at = c(0, min(dg):max(dg)))
+
+# You'll find that this is kind of in-between the random, and the scale-free
+# graph. We do have hubs, but they are not as extreme as in the scale-free case;
+# and we have have no singletons, in contrast to the random graph.
+
+(freqRank <- table(dg))
+plot(log10(as.numeric(names(freqRank)) + 1),
+     log10(as.numeric(freqRank)), type = "b",
+     pch = 21, bg = "#FCD6E2",
+     xlab = "log(Rank)", ylab = "log(frequency)",
+     main = "200 nodes in a random geometric network")
+
+
+
+# ==============================================================================
+#        PART FOUR: A CLOSER LOOK AT THE igraph PACKAGE
+# ==============================================================================
+
 
 # == BASICS ==========================================================
 
-"The basic object of the igraph package is a graph object. Let's turn our adjecency matrix into such an object and explore:"
-iG <- graph_from_adjacency_matrix(G)
+# The basic object of the igraph package is a graph object. Let's explore the
+# first graph some more, the one we built with our random gene names:
 summary(iG)
 
-"Have a look at what the output IGRAPH DN-- 20 34 -- means: study the help page"
+# This output means: this is an IGRAPH graph, with D = directed edges and N =
+# named nodes, that has 20 nodes and 40 edges. For details, see
 ?print.igraph
 
 mode(iG)
 class(iG)
 
-"So an igraph graph object is a special list object; it is opaque in the sense that a user is never expected to modify its components directly, but through a variety of helper functions the package provides. There are many ways to construct graphs - from adjacency matrices, as we have just done, from edge lists, or by producing random graphs according to a variety of recipes, called _games_ in this package.
+# This means an igraph graph object is a special list object; it is opaque in
+# the sense that a user is never expected to modify its components directly, but
+# through a variety of helper functions which the package provides. There are
+# many ways to construct graphs - from adjacency matrices, as we have just done,
+# from edge lists, or by producing random graphs according to a variety of
+# recipes, called _games_ in this package.
 
-As with many R objects, loading the package provides special functions that can be accessed via the same name as the basic R functions, for example:
-"
+# Two basic functions retrieve nodes "Vertices", and "Edges":
+V(iG)
+E(iG)
+
+# As with many R objects, loading the package provides special functions that
+# can be accessed via the same name as the basic R functions, for example:
+
 print(iG)
 plot(iG)
 
-"... where plot() allows the usual flexibility of fine-tuning the plot. We first layout the node coordinates with the Fruchtermann-Reingold algorithm - a force-directed layout that applies an ettractive potential along edges (which pulls nodes together) and a repulsive potential to nodes (so they don't overlap). Note the use of the degree() function to color and scale nodes and labels by degree and the use of the V() function to retrieve the vertex names. See ?plot.igraph for details."
+# ... where plot() allows the usual flexibility of fine-tuning the plot. We
+# first layout the node coordinates with the Fruchtermann-Reingold algorithm - a
+# force-directed layout that applies an ettractive potential along edges (which
+# pulls nodes together) and a repulsive potential to nodes (so they don't
+# overlap). Note the use of the degree() function to color and scale nodes and
+# labels by degree and the use of the V() function to retrieve the vertex names.
+# See ?plot.igraph for details."
 
 iGxy <- layout_with_fr(iG)   # calculate layout coordinates
 
@@ -189,7 +578,7 @@ iGxy <- layout_with_fr(iG)   # calculate layout coordinates
 oPar <- par(mar= rep(0,4)) # Turn margins off
 plot(iG,
      layout = iGxy,
-     vertex.color=ABC.pal(max(degree(iG)+1))[degree(iG)+1],
+     vertex.color=heat.colors(max(degree(iG)+1))[degree(iG)+1],
      vertex.size = 9 + (2 * degree(iG)),
      vertex.label.cex = 0.5 + (0.05 * degree(iG)),
      edge.arrow.size = 0,
@@ -200,137 +589,158 @@ par(oPar)
 
 # == Components
 
-"The igraph function components() works in the same way as the code we wrote above. But its output is a bit different."
+# The igraph function components() tells us whether there are components of the
+# graph in which there is no path to other components.
 components(iG)
 
-"In the _membership_ vector, nodes are annotetd with the index of the component they are part of. feemp is in component 1, seaks is in the second component etc. This is perhaps more clear if we sort by component index:"
+# In the _membership_ vector, nodes are annotated with the index of the component
+# they are part of. Sui7 is the only node of component 2, Cyj1 is in the third
+# component etc. This is perhaps more clear if we sort by component index
 sort(components(iG)$membership)
 
-"Getting e.g. the members of the first component simply can be done by filtering:"
+# Retrieving e.g. the members of the first component from the list can be done by subsetting:
 
-                                 components(iG)$membership == 1  # logical ..
-       components(iG)$membership[components(iG)$membership == 1] # extracting the elements
-names(components(iG)$membership)[components(iG)$membership == 1] # names of the elements
-
-
-
-# == RANDOM GRAPHS AND GRAPH METRICS =================================
+components(iG)$membership == 1  # logical ..
+components(iG)$membership[components(iG)$membership == 1]
+names(components(iG)$membership)[components(iG)$membership == 1]
 
 
-"Let's explore some of the more interesting, topological graph measures from the Pavlopoulos paper. We start by building a soemwhat bigger graph. We aren't quite sure whether biological graphs are small-world, or random-geometric, or preferential-attachment ... but igraph has ways to simulate the basic ones (and we could easily simulate our own). Look at the following help pages:"
+
+# == RANDOM GRAPHS AND GRAPH METRICS ===========================================
+
+
+# Let's explore some of the more interesting, topological graph measures. We
+# start by building a somewhat bigger graph. We aren't quite sure whether
+# biological graphs are small-world, or random-geometric, or
+# preferential-attachment ... but igraph has ways to simulate the basic ones
+# (and we could easily simulate our own). Look at the following help pages:
 
 ?sample_gnm                      # see also sample_gnp for the Erdös-Rényi models
 ?sample_smallworld               # for the Watts & Strogatz model
 ?sample_pa                       # for the Barabasi-Albert model
 
-"But note that there are many more sample_ functions. Check out the docs!
+# But note that there are many more sample_ functions. Check out the docs!
 
-sample_pa() is a stochastic algorithm for a scale-free graph based on the Barabasi-Albert preferential attachment model. Let's plot a moderately large graph, with a force-directed layout, colored by nmode-degree."
+# Let's look at betweenness measures for our first graph: here: the nodes again
+# colored by degree. Degree centrality states: nodes of higher degree are
+# considered to be more central. And that's also the way the force-directed
+# layout drawas them, obviously.
 
-
-set.seed(27172)
-gBA <- sample_pa(1000, power=1.05, out.dist = c(0, 1, 0.3, 0.09, 0.027, 0.0081))
-gBAxy <- layout_with_graphopt(gBA, charge=0.001)   # calculate layout coordinates
-
+set.seed(112358)
+iGxy <- layout_with_fr(iG)   # calculate layout coordinates
 oPar <- par(mar= rep(0,4)) # Turn margins off
-plot(gBA,
-     layout = gBAxy,
+plot(iG,
+     layout = iGxy,
      rescale = FALSE,
-     xlim = c(min(gBAxy[,1]), max(gBAxy[,1])),
-     ylim = c(min(gBAxy[,2]), max(gBAxy[,2])),
-     vertex.color=ABC.pal(max(degree(gBA)+1))[degree(gBA)+1],
-     vertex.size = 800 + (80 * degree(gBA)),
-     vertex.label = "",
+     xlim = c(min(iGxy[,1]), max(iGxy[,1])) * 1.1,
+     ylim = c(min(iGxy[,2]), max(iGxy[,2])) * 1.1,
+     vertex.color=heat.colors(max(degree(iG)+1))[degree(iG)+1],
+     vertex.size = 20 + (10 * degree(iG)),
+     vertex.label = Nnames,
      edge.arrow.size = 0)
 par(oPar)
 
-"The large nodes arise from the fact that a node of high degree is more likely to attract even more additional edges. "
-
-
 # == Diameter
 
-diameter(gBA)  # The maximum length shortest path
-# let's plot the diameter though:
-lines(gBAxy[get_diameter(gBA),], lwd=1.5, col="#AA0000")
-" ... a good reminder that as nice as the netwoirk plots are, they don't necessarily show us the true topological structure of a graph well."
+diameter(iG)  # The diameter of a graph is its maximum length shortest path.
 
+# let's plot this path: here are the nodes ...
+get_diameter(iG)
+
+# ... and we can get the x, y coordinates from iGxy by subsetting with the node
+# names. The we draw the diameter-path with a transparent, thick pink line:
+lines(iGxy[get_diameter(iG),], lwd=10, col="#ff63a788")
 
 # == Centralization scores
 
 ?centralize
-centr_betw(gBA)  # calculate betweenness centrality
+# replot our graph, and color by log_betweenness:
 
-"replot, and color by log_betweenness"
-
-nodeBetw <- centr_betw(gBA)$res
+bC <- centr_betw(iG)  # calculate betweenness centrality
+nodeBetw <- bC$res
 nodeBetw <- round(log(nodeBetw +1)) + 1
 
 oPar <- par(mar= rep(0,4)) # Turn margins off
-plot(gBA,
-     layout = gBAxy,
+plot(iG,
+     layout = iGxy,
      rescale = FALSE,
-     xlim = c(min(gBAxy[,1]), max(gBAxy[,1])),
-     ylim = c(min(gBAxy[,2]), max(gBAxy[,2])),
+     xlim = c(min(iGxy[,1]), max(iGxy[,1])) * 1.1,
+     ylim = c(min(iGxy[,2]), max(iGxy[,2])) * 1.1,
      vertex.color=heat.colors(max(nodeBetw))[nodeBetw],
-     vertex.size = 800 + (80 * degree(gBA)),
-     vertex.label = "",
+     vertex.size = 20 + (10 * degree(iG)),
+     vertex.label = Nnames,
      edge.arrow.size = 0)
-
 par(oPar)
 
-"Note that the betweenness - the number of shortest paths that pass through a node, is in general higher for high-degree nodes - but not always: one of the larger nodes has a very low betweenness: this measure really depends on the detailed local topology of the graph."
+# Note that the betweenness - the number of shortest paths that pass through a
+# node, is in general higher for high-degree nodes - but not always: Eqr2 has
+# higher betweenness than Itv7: this measure really depends on the detailed
+# local topology of the graph."
+
+# Can you use centr_eigen() and centr_degree() to calculate the respective
+# values? That's something I would expect you to be able to do.
+#
+# Lets plot betweenness centrality for our random geometric graph:
+
+bCiGRG <- centr_betw(iGRG)  # calculate betweenness centrality
+
+nodeBetw <- bCiGRG$res
+nodeBetw <- round((log(nodeBetw +1))^2.5) + 1
+
+# colours and size proportional to betweenness
+
+oPar <- par(mar= rep(0,4)) # Turn margins off
+plot(iGRG,
+     layout = iGRGxy,
+     rescale = FALSE,
+     xlim = c(min(iGRGxy[,1]), max(iGRGxy[,1])),
+     ylim = c(min(iGRGxy[,2]), max(iGRGxy[,2])),
+     vertex.color=heat.colors(max(nodeBetw))[nodeBetw],
+     vertex.size = 0.1 + (0.03 * nodeBetw),
+     vertex.label = "",
+     edge.arrow.size = 0)
+par(oPar)
+
+diameter(iGRG)
+lines(iGRGxy[get_diameter(iGRG),], lwd=10, col="#ff335533")
 
 
-# == Degree distribution
 
-"Let's calculate the cumulative degree distribution of our network. The frist element are zero-degree nodes, the second are 0n-degree nodes and so on. Our largest node has degree 141. We remove the first element from this vector, since our network has no zero-degree nodes."
+# == CLUSTERING ================================================================
 
-degree_distribution(gBA, cumulative=TRUE)[-1]
-dDeg <- degree_distribution(gBA, cumulative=TRUE)[-1]
-
-"Pavlopoulos mentioned three popular ways to plot the degree distribution:
-
-1: log(rank) vs. log(degree):"
-plot(log(rank(degree(gBA))), log(degree(gBA)))
-
-"This is not a power-law distribution!
-
-2: histogram of log(degree):"
-hist(log(degree(gBA)))
-
-"3. degrees vs. cumulative degree distribution"
-plot(log(degree(gBA)), log(dDeg[degree(gBA)]))
-
-"This plot gives a nearly straight line for the preferential attachment model.
-
-While one may attempt to interpret the parameters of these plots - slopes, exponents, intercepts ... they are really most useful as sensitive measures to compare a biological network with a random, synthetic network to generate hypotheses regarding which TYPE of model could be underlying our observation.
-"
+# Clustering finds "communities" in graphs - and depending what the edges
+# represent, these could be complexes, pathways, biological systems or similar.
+# There are many graph-clustering algorithms. One approach with many attractive
+# properties is the Map Equation, developed by Martin Rosvall. See:
+# http://www.ncbi.nlm.nih.gov/pubmed/18216267 and htttp://www.mapequation.org
 
 
-# == CLUSTERING ======================================================
+iGRGclusters <- cluster_infomap(iGRG)
+modularity(iGRGclusters) # ... measures how separated the different membership
+# types are from each other
+membership(iGRGclusters) # which nodes are in what cluster?
+table(membership(iGRGclusters))  # how large are the clusters?
 
-'Clustering finds "communities" in graphs - and depending what the edges represent, these could be complexes, pathways, biological systems or similar. There are many graph-clustering algorithms. One approach with many attractive properties is the Map Equation, developed by Martin Rosvall. See: http://www.ncbi.nlm.nih.gov/pubmed/18216267 and htttp://www.mapequation.org '
+# The largest cluster has 48 members, the second largest has 25, etc.
 
-gBAclusters <- cluster_infomap(gBA)
-modularity(gBAclusters)   # ... measures how separated the different membership types are from
-                          # each other
-membership(gBAclusters)
-table(membership(gBAclusters))  # The sizes of the clusters
+# Lets plot our graph again, coloring the nodes of the first five communities by
+# their cluster membership:
 
-"Lets plot our graph again, coloring the nodes of the first five communities by their membership:"
-commColors <- rep("#f1eef6", max(membership(gBAclusters)))  # as many light colors as we
-                                                            # have communities
+# first, make a vector with as many grey colors as we have communities ...
+commColors <- rep("#f1eef6", max(membership(iGRGclusters)))
+# ... then overwrite the first five with "real colors" - something like rust,
+# lilac, pink, and mauve or so.
 commColors[1:5] <- c("#980043", "#dd1c77", "#df65b0", "#c994c7", "#d4b9da")
 
 
 oPar <- par(mar= rep(0,4)) # Turn margins off
-plot(gBA,
-     layout = gBAxy,
+plot(iGRG,
+     layout = iGRGxy,
      rescale = FALSE,
-     xlim = c(min(gBAxy[,1]), max(gBAxy[,1])),
-     ylim = c(min(gBAxy[,2]), max(gBAxy[,2])),
-     vertex.color=commColors[membership(gBAclusters)],
-     vertex.size = 800 + (80 * degree(gBA)),
+     xlim = c(min(iGRGxy[,1]), max(iGRGxy[,1])),
+     ylim = c(min(iGRGxy[,2]), max(iGRGxy[,2])),
+     vertex.color=commColors[membership(iGRGclusters)],
+     vertex.size = 0.1 + (0.1 * degree(iGRG)),
      vertex.label = "",
      edge.arrow.size = 0)
 
@@ -338,44 +748,124 @@ par(oPar)
 
 
 
-# ====================================================================
-#        PART FOUR: PLAY
-# ====================================================================
+# ==============================================================================
+#        PART FIVE: EXPLORE FUNCTIONAL EDGES IN THE HUMAN PROTEOME
+# ==============================================================================
 
-"In order for you to explore some real, biological networks, I give you a dataframe of functional relationships of human proteins downloaded from the STRING database. The full table has 8.5 million records, here is a subset of records with combined scores > 980"
+# In order for you to explore a real, biological network, I give you a
+# dataframe of functional relationships of human proteins that I have downloaded
+# from the STRING database. The full table has 8.5 million records, here is a
+# subset of records with combined confidence scores > 980
 
-ABC.fig("STRINGscores.png") # STRING scores distribution
-
-"The selected set of edges with a confidence of > 980 is a dataframe with about 50,000 edges and 6,500 unique proteins. You can load the saved dataframe here (and also read more about what the numbers mean at http://www.ncbi.nlm.nih.gov/pubmed/15608232 ).
-"
+# The selected set of edges with a confidence of > 980 is a dataframe with about
+# 50,000 edges and 6,500 unique proteins. You can load the saved dataframe here
+# (and also read more about what the numbers mean at
+# http://www.ncbi.nlm.nih.gov/pubmed/15608232 ).
 
 load("STRINGedges.RData")
+
+head(STRINGedges)
+
+
 # make a graph from this dataframe
 ?graph_from_data_frame
 
 gSTR <- graph_from_data_frame(STRINGedges)
 
+# CAUTION you DON'T want to plot a graph with 6,500 nodes and 50,000 edges -
+# layout of such large graphs is possible, but requires specialized code. Google
+# for <layout large graphs> if you are curious. Also, consider what one can
+# really learn from plotting such a graph ...
+
+# Of course simple computations on this graph are reasonably fast:
+
 compSTR <- components(gSTR)
 summary(compSTR) # our graph is fully connected!
 
+dg <- degree(gSTR)
+hist(log(dg), col="#FEE0AF")
+# this actually does look rather scale-free
 
-hist(log(degree(gSTR)))
-dDegSTR <- degree_distribution(gSTR, cumulative=TRUE)[-1]
-plot(log(degree(gSTR)), log(dDegSTR[degree(gSTR)]))
+(freqRank <- table(dg))
+plot(log10(as.numeric(names(freqRank)) + 1),
+     log10(as.numeric(freqRank)), type = "b",
+     pch = 21, bg = "#FEE0AF",
+     xlab = "log(Rank)", ylab = "log(frequency)",
+     main = "6,500 nodes from the human functional interaction network")
 
-"This is very cool! I haven't seen this before. What does it mean?
+# This looks very scale-free indeed.
+#
+# Now explore some more:
 
-Now explore some more:
+# === CLIQUES   ========
+# Let's find the largest cliques. Remember: a clique is a fully connected
+# subgraph, i.e. a subgraph in which every node is connected to every other.
+# Biological complexes often appear as cliques in interaction graphs.
 
-- Find the largest cliques with largest_cliques(). Pick one of the proteins and find out what it is (you can simply google for it). Is this expected?
+clique_num(gSTR)
+# The largest clique has 63 members.
 
-- Find the nodes with the 10 - highest betweenness centralities. Use centr_betw() to calculate the values, V() to get the names, and how many nodes there are. The N - 10 highest ranked nodes is what you are looking for. Get the list of IDs. Then find what these proteins are..."
+largest_cliques(gSTR)[[1]]
 
+# Pick one of the proteins and find out what this fully connected cluster of 63
+# proteins is (you can simply Google for the ID). Is this expected?
+
+
+
+# === BETWEENNESS CENTRALITY   =======================================
+
+# Let's find the nodes with the 10 - highest betweenness centralities.
+#
+BC <- centr_betw(gSTR)
+
+# remember: BC$res contains the results
+head(BC$res)
+
+BC$res[1]   # betweeness centrality of node 1 in the graph ...
+# ... which one is node 1?
+V(gSTR)[1]
+
+# to get the ten-highest nodes, we simply label the elements BC with their
+# index ...
+names(BC$res) <- as.character(1:length(BC$res))
+
+# ... and then we sort:
+sBC <- sort(BC$res, decreasing = TRUE)
+head(sBC)
+
+# This ordered vector means: node 3,862 has the highest betweeness centrality,
+# node 1,720 has the second highest.. etc.
+
+BCsel <- as.numeric(names(sBC)[1:10])
+BCsel
+# We can use the first ten labels to subset the nodes in gSTR and fetch the
+# IDs...
+ENSPsel <- names(V(gSTR)[BCsel])
+
+# We  need to remove the string "9606." from the ID:
+ENSPsel <- gsub("9606\\.", "", ENSPsel)
+
+# This is the final vector of IDs.:
+ENSPsel
+
+# Could you define in a short answer quiz what these IDs are? And what their
+# biological significance is? I expect you to be able to.
+
+#  Next, to find what these proteins are...
+
+# We could now Google for all of these IDs to learn more about them. But really,
+# googling for IDs one after the other, that would be lame. Let's instead use
+# the very, very useful biomaRt package to translate these Ensemble IDs into
+# gene symbols.
 
 # == biomaRt =========================================================
 
-"IDs are just labels, but for _bio_informatics we need to learn more about the biological function of the genes or proteins  that we retrieve via graph data mining. biomaRt is the tool of choice. It's a package distributed by the bioconductor project. This here is not a biomaRt tutorial (that's for another day), simply a few lines of sample code to get you started on the specific use case of retrieving descriptions for ensembl protein IDs."
-
+# IDs are just labels, but for _bio_informatics we need to learn more about the
+# biological function of the genes or proteins that we retrieve via graph data
+# mining. biomaRt is the tool of choice. It's a package distributed by the
+# bioconductor project. This here is not a biomaRt tutorial (that's for another
+# day), simply a few lines of sample code to get you started on the specific use
+# case of retrieving descriptions for ensembl protein IDs.
 
 if (!require(biomaRt)) {
   source("http://bioconductor.org/biocLite.R")
@@ -383,59 +873,88 @@ if (!require(biomaRt)) {
   library("biomaRt")
 }
 
-ensembl <- useMart("ensembl", dataset="hsapiens_gene_ensembl")
-filters <- listFilters(ensembl)
-attributes <- listAttributes(ensembl)
+# define which dataset to use ...
+myMart <- useMart("ensembl", dataset="hsapiens_gene_ensembl")
 
+# what filters are defined?
+filters <- listFilters(myMart)
+filters
+
+# and what attributes can we filter for?
+attributes <- listAttributes(myMart)
+attributes
+
+# Soooo many options - let's look for the correct name of filters that are
+# useful for ENSP IDs ...
 filters[grep("ENSP", filters$description), ]
 
+# ... and the correct attribute names for gene symbols and descriptions ...
 attributes[grep("symbol", attributes$description, ignore.case=TRUE), ]
 attributes[grep("description", attributes$description, ignore.case=TRUE), ]
 
+
+# ... so we can put this together: here is a syntax example:
 getBM(filters = "ensembl_peptide_id",
       attributes = c("hgnc_symbol",
                      "wikigene_description",
                      "interpro_description",
                      "phenotype_description"),
       values = "ENSP00000000442",
-      mart = ensembl)
+      mart = myMart)
 
-"That should be enough to show you the way.
+# A simple loop will now get us the information for our 10 most central genes
+# from the human subset of STRING.
 
-So what are the proteins with the ten highest betweenness centralities? ... are you surprised? (I am!)
+CPdefs <- list()  # Since we don't know how many matches one of our queries
+# will return, we'll put the result dataframes into a list.
 
-Pick ten random proteins for comparison:
-"
-sample(V(gSTR), 10 )
+for (ID in ENSPsel) {
+  CPdefs[[ID]] <- getBM(filters = "ensembl_peptide_id",
+                        attributes = c("hgnc_symbol",
+                                       "wikigene_description",
+                                       "interpro_description",
+                                       "phenotype_description"),
+                        values = ID,
+                        mart = myMart)
+}
 
-"... these seem to be a very different bunch."
+# So what are the proteins with the ten highest betweenness centralities?
+#  ... are you surprised? (I am! Really.)
+
+# Final task: Write a loop that will go through your list and
+#    for each ID:
+#    --  print the ID,
+#    --  print the first row's symbol, and
+#    --  print the first row's wikigene description.
+#
+# (Hint, you can structure your loop in the same way as the loop that
+# created CPdefs. )
+
+# Print the R code for your loop and its output for the ten genes onto a sheet
+# of paper. I may ask you to hand this in for credit later in the course.
 
 
+# ==============================================================================
+#        PART SIX: OUTLOOK
+# ==============================================================================
 
-
-
-
-
-# ====================================================================
-#        APPENDIX: OUTLOOK
-# ====================================================================
-"There are many more functions for graph and network analysis that this tutorial did not cover. You should know about the following. Look up the function and write a short bit of example code that uses it:"
+# There are many more functions for graph and network analysis that this
+# tutorial did not cover. You should know about the following. Look up the
+# function and write a short bit of example code that uses it:"
 
 ?motifs           # to find network motifs
 ?neighbors        # to find neighbors
 ?neighborhood     # to find nodes that are not further than a given distance from a center
 
 
-"Then you should know about the following packages. There is an extensive set of biological graph algorithms in bioconductor packages:
-
-http://bioconductor.org/packages/release/BiocViews.html#___GraphAndNetwork
-
-...and definitely check out MCL:
-
-https://cran.r-project.org/web/packages/MCL/index.html
-
-"
-
+# Then you should know about the following packages. There is an extensive set
+# of biological graph algorithms in bioconductor packages:
+#
+# http://bioconductor.org/packages/release/BiocViews.html#___GraphAndNetwork
+#
+# ...and definitely check out MCL:
+#
+# https://cran.r-project.org/web/packages/MCL/index.html
 
 
 
