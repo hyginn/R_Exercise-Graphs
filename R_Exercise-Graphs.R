@@ -4,16 +4,15 @@
 #
 # Version: 1.3
 #
-# Date:    2016  02  28
+# Date:    2016  02  05
 # Author:  Boris Steipe
 #
-# V 1.3    Update from 2016 "Function" code and heat-diffusion example
+# V 1.3    Update from 2016 "Function" code; add heat-diffusion example
 # V 1.2    Typos
 # V 1.1    Added a biomaRt section
 # V 1.0    First code
 #
 # TODO:
-#  - try some label propagation
 #  - storing extra annotations
 #  - compare networks from different sources
 #  - create a fusion network
@@ -166,7 +165,7 @@ par(oPar)  # reset plot window
 # To get a better feel for computing with graphs, let's write a simple
 # algorithm: counting the number of connected components in the graph. A
 # subgraph is connected if there is a path from any node to any other. As the
-# image above showed you, our graph G has four connected components.
+# plot above showed you, our graph G has three connected components.
 
 # The algorithm employs a simple breadth-first search: we start at a node and
 # initialize our first connected component with it. Then we add all its neigbors
@@ -187,28 +186,34 @@ neighboursOf <- function(node, adjM) {
   # matrix. One could easily substitute this function for a different graph
   # representation. This function assumes that elements of the adjacency
   # matrix evaluate as logical FALSE if they do NOT represent an edge (i.e.
-  # they are 0, or 0.0) and TRUE if they do represent an edge (any non-zero number).
-  # Thus this will work for weighted and unweighted graphs.
-  #                                adjM[node, ]   contents of node's row of the matrix,
-  #                     as.logical(adjM[node, ])  ... turned into a logical vector,
-  #      colnames(adjM)[as.logical(adjM[node, ])] ... used to subset the return-value of colnames()
+  # they are 0, or 0.0) and TRUE if they do represent an edge (any non-zero
+  # number). Thus this will work for weighted and unweighted graphs.
+  #                                adjM[node, ]   contents of node's row of
+  #                                               the matrix ...
+  #                     as.logical(adjM[node, ])  ... turned into a logical
+  #                                               vector ...
+  #      colnames(adjM)[as.logical(adjM[node, ])] ... used to subset the
+  #                                               return-value of colnames()
   return(colnames(adjM)[as.logical(adjM[node, ])])
 }
 
 
-for (node in rownames(G)) {                 # Process each node.
-  if (! processed[node]) {                  # If we haven't processed it previously:
-    iC <- length(components) + 1            #   initialize a new component
-    components[[iC]] <- node                #   ... with this node.
-    queue <- neighboursOf(node, G)          #   Append its neighbors to the queue
-    processed[node] <- TRUE                 #   Flag it as processed.
-    while (length(queue) > 0) {             #   Now work through the queue:
-      currentNode <- queue[1]               #     get the node from position one,
-      queue <- queue[-1]                    #     ... and remove it from the queue.
-      if (! processed[currentNode]) {       #     If we haven't processed it previously:
-        components[[iC]] <- c(components[[iC]], currentNode) # ... add it to the current component,
-        queue <- c(queue, neighboursOf(currentNode, G)) # ... add its neigbors to the queue
-        processed[currentNode] <- TRUE      #        ... and flag it as processed.
+for (node in rownames(G)) {           # Process each node.
+  if (! processed[node]) {            # If we haven't processed it previously:
+    iC <- length(components) + 1      #   initialize a new component
+    components[[iC]] <- node          #   ... with this node.
+    queue <- neighboursOf(node, G)    #   Append its neighbors to the queue
+    processed[node] <- TRUE           #   Flag it as processed.
+    while (length(queue) > 0) {       #   Now work through the queue:
+      currentNode <- queue[1]         #     get the node from position one,
+      queue <- queue[-1]              #     ... and remove it from the queue.
+      if (! processed[currentNode]) { #     If we haven't yet processed it:
+        components[[iC]] <- c(components[[iC]], currentNode) # ... add it to the
+                                                             # current
+                                                             # component,
+        queue <- c(queue, neighboursOf(currentNode, G)) # ... add its neigbors
+                                                        # to the queue
+        processed[currentNode] <- TRUE      #  ... and flag it as processed.
       }
     }                                       #   Repeat until the queue is empty.
   }
@@ -236,8 +241,8 @@ for (node in rownames(G)) {                 # Process each node.
 # Now let's look at the results:
 
 
-unlist(lapply(components, length))  # size of each component
-sizes <- unlist(lapply(components, length))
+# size of each component
+( sizes <- unlist(lapply(components, length)) )
 length(sizes)                       # number of components
 mean(sizes)                         # average size
 sd(sizes)                           # sd of size
@@ -250,14 +255,9 @@ components                          # the actual components
 # packages in R, but currently the package of choice seems to be iGraph."
 
 
-
 # ==============================================================================
 #        PART TWO: DEGREE DISTRIBUTIONS
 # ==============================================================================
-
-
-
-
 
 # The simplest descriptor of a graph are the number of nodes, edges, and the
 # degree-distribution. In our example, the number of nodes was given: N; the
@@ -328,7 +328,7 @@ par(oPar)
 
 # Calculate degree distributions
 dg <- degree(iG200)/2   # here, we use the iGraph function degree()
-# not rowsums() from base R.
+                        # not rowsums() from base R.
 brk <- seq(min(dg)-0.5, max(dg)+0.5, by=1)
 hist(dg, breaks=brk, col="#A5CCF5",
      xlim = c(-1,11), xaxt = "n",
@@ -336,10 +336,10 @@ hist(dg, breaks=brk, col="#A5CCF5",
 axis(side = 1, at = 0:10)
 
 
+# Note the characteristic peak of this distribution: this is not "scale-free".
+# Here is a log-log plot of frequency vs. degree-rank:
 
-# Note the characteristic peak of this distribution: this is not "scale-free". Here is a log-log plot of frequency vs. degree-rank:
-
-(freqRank <- table(dg))
+( freqRank <- table(dg) )
 plot(log10(as.numeric(names(freqRank)) + 1),
      log10(as.numeric(freqRank)), type = "b",
      pch = 21, bg = "#A5CCF5",
@@ -379,7 +379,7 @@ par(oPar)
 # this makes. Also: note that the graph has only a single component.
 
 # What's the degree distribution of this graph?
-(dg <- degree(GBA))
+( dg <- degree(GBA) )
 brk <- seq(min(dg)-0.5, max(dg)+0.5, by=1)
 hist(dg, breaks=brk, col="#A5D5CC",
      xlim = c(0,30), xaxt = "n",
@@ -412,7 +412,7 @@ rm(X)
 
 # Finally, let's simulate a random geometric graph and look at the degree
 # distribution. Remember: these graphs have a high probability to have edges
-# between nodes that are "close" together - an entriely biological notion.
+# between nodes that are "close" together - an entirely biological notion.
 
 # We'll randomly place our nodes in a box. Then we'll define the
 # probability for two nodes to have an edge to be a function of their distance.
@@ -508,7 +508,7 @@ plot(iGRG,
 par(oPar)
 
 # degree distribution:
-(dg <- degree(iGRG)/2)
+( dg <- degree(iGRG)/2 )
 brk <- seq(min(dg)-0.5, max(dg)+0.5, by=1)
 hist(dg, breaks=brk, col="#FCD6E2",
      xlim = c(0, 25), xaxt = "n",
@@ -520,7 +520,7 @@ axis(side = 1, at = c(0, min(dg):max(dg)))
 # graph. We do have hubs, but they are not as extreme as in the scale-free case;
 # and we have have no singletons, in contrast to the random graph.
 
-(freqRank <- table(dg))
+( freqRank <- table(dg) )
 plot(log10(as.numeric(names(freqRank)) + 1),
      log10(as.numeric(freqRank)), type = "b",
      pch = 21, bg = "#FCD6E2",
@@ -593,15 +593,17 @@ par(oPar)
 # graph in which there is no path to other components.
 components(iG)
 
-# In the _membership_ vector, nodes are annotated with the index of the component
-# they are part of. Sui7 is the only node of component 2, Cyj1 is in the third
-# component etc. This is perhaps more clear if we sort by component index
+# In the _membership_ vector, nodes are annotated with the index of the
+# component they are part of. Sui7 is the only node of component 2, Cyj1 is in
+# the third component etc. This is perhaps more clear if we sort by component
+# index
 sort(components(iG)$membership)
 
-# Retrieving e.g. the members of the first component from the list can be done by subsetting:
+# Retrieving e.g. the members of the first component from the list can be done
+# by subsetting:
 
-components(iG)$membership == 1  # logical ..
-components(iG)$membership[components(iG)$membership == 1]
+                                 components(iG)$membership == 1  # logical ..
+       components(iG)$membership[components(iG)$membership == 1]
 names(components(iG)$membership)[components(iG)$membership == 1]
 
 
@@ -762,12 +764,22 @@ par(oPar)
 # (and also read more about what the numbers mean at
 # http://www.ncbi.nlm.nih.gov/pubmed/15608232 ).
 
-load("STRINGedges.RData")
+load("data/STRINGedges.RData")
 
 head(STRINGedges)
 
+# The protein identifiers are Ensemble IDs, but they are prefixed with the
+# taxonomy ID  for which this subset of all STRING edges was created (here:
+# 9606, homo sapiens). For clarity, we'll remove this prefix. gsub() would
+# normally be the function of choice, but in this case, since the format is
+# exactly defined ...
+summary(nchar(c(STRINGedges$protein1, STRINGedges$protein2)))
+#  ... we can go with the faster substr() approach:
 
-# make a graph from this dataframe
+STRINGedges$protein1 <- substr(STRINGedges$protein1, 6, 20)
+STRINGedges$protein2 <- substr(STRINGedges$protein2, 6, 20)
+
+# We use an igraph function to make a graph from this dataframe
 ?graph_from_data_frame
 
 gSTR <- graph_from_data_frame(STRINGedges)
@@ -791,7 +803,8 @@ plot(log10(as.numeric(names(freqRank)) + 1),
      log10(as.numeric(freqRank)), type = "b",
      pch = 21, bg = "#FEE0AF",
      xlab = "log(Rank)", ylab = "log(frequency)",
-     main = "6,500 nodes from the human functional interaction network")
+     main = "6,500 human proteins with high-confidence  from the  STRING network",
+     cex.main = 0.9)
 
 # This looks very scale-free indeed.
 #
@@ -842,11 +855,6 @@ BCsel
 # IDs...
 ENSPsel <- names(V(gSTR)[BCsel])
 
-# We  need to remove the string "9606." from the ID:
-ENSPsel <- gsub("9606\\.", "", ENSPsel)
-
-# This is the final vector of IDs.:
-ENSPsel
 
 # Could you define in a short answer quiz what these IDs are? And what their
 # biological significance is? I expect you to be able to.
@@ -854,7 +862,7 @@ ENSPsel
 #  Next, to find what these proteins are...
 
 # We could now Google for all of these IDs to learn more about them. But really,
-# googling for IDs one after the other, that would be lame. Let's instead use
+# googling for ID one after the other, that would be lame. Let's instead use
 # the very, very useful biomaRt package to translate these Ensemble IDs into
 # gene symbols.
 
@@ -931,11 +939,568 @@ for (ID in ENSPsel) {
 # created CPdefs. )
 
 # Print the R code for your loop and its output for the ten genes onto a sheet
-# of paper. I may ask you to hand this in for credit later in the course.
+# of paper.
+
 
 
 # ==============================================================================
-#        PART SIX: OUTLOOK
+#        PART SIX: ATTRIBUTE PROPAGATION
+# ==============================================================================
+
+# ==== preparations - if you start at this section
+library(igraph)
+load("data/STRINGedges.RData")
+STRINGedges$protein1 <- substr(STRINGedges$protein1, 6, 20)
+STRINGedges$protein2 <- substr(STRINGedges$protein2, 6, 20)
+gSTR <- graph_from_data_frame(STRINGedges)
+# ================================================
+
+
+# In graph theory, a label is a categorical attribute of a vertex or edge,
+# typically represented by a boolean, or integer. Of course, attributes in
+# general don't have to be categorical, but can be anything, however when we
+# speak of "attribute propagation", we are considering real-valued attributes,
+# and how network topology can help us to infer attributes by using knowledge
+# about attributes of neighboring or close vertices. Label propagation on the
+# other hand considers whether we can assign categories to nodes for which
+# category membership is unknown, based on their proximity to nodes of known
+# categories. The two tasks intersect when we propagate attributes in a network
+# to determine vertex labels based on a threshold value of the attribute.
+
+# In this section we will build a subgraph from the STRING network of human,
+# functionally interacting proteins, add labels and attributes from the IntOGen
+# database of cancer driver genes, and then illustrate various approaches to
+# label and attribute propagation.
+
+# The basic question this example aims to illustrate is: which genes are a part
+# of a subnetwork that is significantly enriched in cancer driver genes.
+# However, the approach is general, and you can readily substitute many other
+# properties of ineterst for the "driver genes" we use here.
+
+# ==== A RANDOM, CONNECTED SUBGRAPH ============================================
+
+# Our first task is to define a subnetwork that we can work with (the complete
+# STRING network is too large for demonstration purposes). Since propagation
+# requires edges, we need a fully connected subgraph. And since we have no
+# particular ideas about the toplogy our subgraph should have, we'll just
+# proceed randomly. Here is a function that will run a random walk on a graph G,
+# collect all vertices it encounters, and return the subgraph of order N once it
+# has encountered N distinct vertices. Note that this is not strictly speaking a
+# random subgraph, because we are more likely to explore the neighbourhood of
+# highly connected subgraphs, or cliques, more exhaustively than other regions
+# of the network - the subgraph topology and degree distribution is therefore
+# not random, but depends on the original network topology.
+
+pickSub <- function(G, N, mySeed = 112358) {
+  # Pick a random, connected subgraph of N nodes on G.
+  # G    an igraph graph.
+  # N    integer
+  # Value:
+  #    igraph graph: induced subgraph on G
+  # Details:
+  #    A random walk is performed on G from a random starting vertex and its
+  #    trajectory is stored in tra, until the number of vertices in tra is N, or
+  #    the number of steps exceeds nMAX. Note that the number of vertices in a
+  #    trajectory is not the same as number of steps, since vertices can be
+  #    encountered multiple times! The subgraph containing all vertices in tra
+  #    and all of their mutual edges is returned.
+  nMAX <- 10 * N
+  set.seed(mySeed)
+  tra <- sample(as.numeric(V(G)), 1)  # random starting vertex
+  nSteps <- 1
+
+  while (length(unique(tra)) < N && nSteps < nMAX) {
+    nei <- as.numeric(neighbors(G, V(G)[tra[1]])) # neighbors of most recent
+                                                  # vertex in tra
+    if (length(nei) > 1) {    # if more than one neighbor ...
+      nei <- sample(nei, 1)   # ... pick only one.
+    }
+    tra <- c(nei, tra)   # add the neighbor to the front of the trajectory
+    nSteps <- nSteps + 1
+  }
+  return(induced_subgraph(G, V(G)[unique(tra)]))
+}
+
+N <- 100  # number of vertices in our random graph
+G <- pickSub(gSTR, N, mySeed = 31416)
+# ... other interesting graphs you could explore
+# G <- pickSub(gSTR, N, mySeed = 11235813)
+# G <- pickSub(gSTR, N, mySeed = 27)
+# G <- pickSub(gSTR, N, mySeed = 272)
+# G <- pickSub(gSTR, N, mySeed = 271828183)
+# G <- pickSub(gSTR, N, mySeed = 31)
+
+# In order to make sense of our network, we should translate the ENSP IDs to
+# gene symbols. Unfortunately not all of STRINGs IDs can be found in biomart -
+# the databases are not synchronized and when Ensembl updates identifiers that
+# does not necessarily mean the STRING identifiers get updated as well. However,
+# the STRING database has a mapping file of ENSP IDs to UniProt IDs, and the
+# latter can be used with the UniProt ID mapping service to map to HGNC gene
+# symbols. For details, install and work through the project at
+# https://www.github.com/hyginn/R_exercise-IDmapping Here we simply use the
+# resulting mapping vector:
+load("data/ID2symMap.RData")
+head(ID2symMap)
+
+# cheating :-)     (Two ENSP IDs in G are not in ID2symMap. I looked them up.)
+x <- c("UBC", "DVL1")
+names(x) <- c("ENSP00000344818", "ENSP00000368169")
+ID2symMap <- c(ID2symMap, x)
+
+# Change the vertex $name attribute in G
+nV <- names(V(G))            # current vertex names
+sV <- ID2symMap[nV]          # map to HGNC symbols
+na <- which(is.na(sV))       # index of unmapped names
+sV[na] <- nV[na]             # use original ENSP IDs instead
+G <- set_vertex_attr(G, "name", value = sV)
+
+# Compute a 2-D layout of the graph, for plotting
+Gxy <- layout_with_fr(G); a <- 8; b <- 1.5
+
+# Other possible layouts ...
+# Gxy <- layout_with_graphopt(G, niter=10000, charge = 0.1); a <- 1500; b <- 300
+# Gxy <- layout_with_kk(G); a <- 15; b <- 0.4
+# Gxy <- layout_with_mds(G); a <- 8; b <- 0.3
+
+# Centre the graph, to simplify scaling the plot frame to be a bit larger than
+# the graph.
+Gxy[,1] <- Gxy[,1] - mean(Gxy[,1])
+Gxy[,2] <- Gxy[,2] - mean(Gxy[,2])
+
+oPar <- par(mar= rep(0,4)) # Turn margins off
+plot(G,
+     layout = Gxy, # calculated layout coordinates
+     rescale = FALSE,
+     xlim = c(min(Gxy[,1]), max(Gxy[,1])) * 1.1,
+     ylim = c(min(Gxy[,2]), max(Gxy[,2])) * 1.1,
+     vertex.color=heat.colors(max(degree(G)+1))[degree(G)+1],
+     vertex.size = a + (b * degree(G)),
+     vertex.label = "",
+     edge.arrow.size = 0)
+text(Gxy, names(V(G)), cex = 0.5)
+par(oPar)
+
+# Note that our random walk has picked up 27 of the 31 protein components of the
+# mediator complex:
+names(V(G))[grep("^MED|CCNC|CDK8", names(V(G)))]
+# Physical complexes are highly connected thus random walks have a high
+# probability to find all members, if they encounter one member. That's the
+# principle behind the map equation graph clustering algorithm.
+
+# Note also that one of the highly connected nodes is UBC. Nodes such as this
+# illustrate a conceptual limitation of all network propagation algorithms: the
+# fact that two nodes are connected to a high-degree network "hub" such as
+# ubiqutin does not _necessarily_ mean they are functionally related.
+
+# Also note that the above statements about the biological interpretation of
+# a network are impossible to make if you don't annotate vertices with the
+# name/function of the proteins they represent. Gene symbols are rather minimal
+# information in that regard, but ENSP IDs or UniProt IDs are useless.
+
+
+# ==== ANNOTATING CANCER DRIVER GENES ==========================================
+
+# Are there any cancer driver genes in our graph? The IntOGen database publishes
+# a convenient list at http://www.intogen.org - I have placed a table into the
+# data directory:
+
+intogenDrivers <- read.delim("data/intogen-drivers-data.2017-02-04.tsv",
+                             header = TRUE,
+                             stringsAsFactors = FALSE)
+head(intogenDrivers)
+
+# Are there driver genes in G? (Analyze the expression!)
+V(G)[which(names(V(G)) %in% intogenDrivers$SYMBOL)]
+
+# Indeed.
+
+# Lets add an attribute to the graph in which we label "driver" genes:
+G <- set_vertex_attr(G, "driver",
+                     value = (names(V(G)) %in% intogenDrivers$SYMBOL) )
+
+# Confirm:
+head(V(G)$driver, 10)
+sum(V(G)$driver)
+
+# Let's plot the driver genes in the graph. vcount() returns the number of
+# vertices in an igraph object (the order of the graph).
+
+# For convenience, we define a coloring function that returns colors for values
+# from 0 to 1 - we'll need this a lot later. Note how we use apply() and a bound
+# to make sure we don't exceed the computed index in our vector of color values.
+# The function is written to work on single values, as well as vectors:
+
+scoreCol <- function(val, N = 20) {
+  # returns a color from a gradient for val between 0 and 1 discretized
+  # in N steps
+  val <- apply(cbind(val, 0.00001), 1, max) # bound just above 0
+  val <- apply(cbind(val, 0.99999), 1, min) # bound just below 1
+  vCol <- colorRampPalette(c("#FFFFDD",
+                             "#BBBBC5",
+                             "#DD0000"),
+                           bias = 2.5)(N)
+  return(vCol[floor(val * N) + 1])
+}
+
+# display ...
+barplot(rep(1, 20), col = scoreCol(seq(0, 1, length.out = 20)),
+        axes = FALSE)
+
+
+# Next we define a convenient plotting function:
+plotG <- function(G, Gxy, myCol) {
+  oMar <- par("mar")
+  par(mar = rep(0,4)) # Turn margins off
+  plot(G,
+       layout = Gxy, # calculated layout coordinates
+       rescale = FALSE,
+       xlim = c(min(Gxy[,1]), max(Gxy[,1])) * 1.1,
+       ylim = c(min(Gxy[,2]), max(Gxy[,2])) * 1.1,
+       vertex.color = myCol,
+       vertex.size = 40,
+       vertex.label = "",
+       edge.arrow.size = 0)
+  text(Gxy, names(V(G)), col = "#00000088", cex = 0.5)
+  par(mar = oMar)
+}
+
+# Now let's look at our driver genes:
+
+plotG(G, Gxy, scoreCol(as.numeric(V(G)$driver)))
+
+# ===== Label propagation by majority rule
+
+# Perhaps the simplest method for label propagation is "majority rule". A label
+# is propagated to an unlabelled node, if the majority of its neighbors have
+# that label. A quick look at our network shows however that none of the nodes
+# have a majority of driver gene neighbors.
+
+# ===== Label propagation by random walk
+
+# An alternative idea is to determine a label of an unlabelled node by doing a
+# random walk until we encounter a labelled node, then counting how often we
+# have encountered which label. We would say: the walk has been "absorbed" by a
+# label. Let's seed our graph with a few random labels from two categories and
+# try such absorptive random walks.
+
+set.seed(11235)
+# randomly assign six nodes each to a category 1 and 2
+cat1 <- logical(vcount(G))
+cat1[sample(1:vcount(G), 6)] <- TRUE
+cat2 <- logical(vcount(G))
+cat2[sample(1:vcount(G), 6)] <- TRUE
+
+twoLabelCol <- rep("#FFFFDD", vcount(G))
+twoLabelCol[cat1] <- "#CC0088"   # Label 1
+twoLabelCol[cat2] <- "#0088CC"   # Label 2
+plotG(G, Gxy, twoLabelCol)
+
+nWalks = 21
+for (i in 1:vcount(G)) {  # for each node in G
+  pBar(i, vcount(G))
+  if (! cat1[i] && ! cat2[i]) {  # node is not in category 1 or 2
+    n1 <- 0
+    n2 <- 0
+    for (j in 1:nWalks) {
+      v <- i   # initialize current node
+      while(! cat1[v] && ! cat2[v]) { # continue as long as we don't hit a
+                                      # labelled node
+          nei <- as.numeric(neighbors(G, V(G)[v])) # neighbors of current node
+          if (length(nei) > 1) {    # if more than one neighbor ...
+            nei <- sample(nei, 1)   # ... pick only one.
+          }
+          v <- nei                  # update current node
+      } # end while: we have hit a label
+      if (cat1[v]) { # count it
+        n1 <- n1 + 1
+      } else {
+        n2 <- n2 + 1
+      }
+    } # end for nWalks: decide
+    if (n1 > n2) {
+      twoLabelCol[i] <- "#CC008833" # transparent color for cat1
+    } else {
+      twoLabelCol[i] <- "#0088CC33"
+    }
+  }
+}
+
+# Let's see how our labels have propagated ...
+plotG(G, Gxy, twoLabelCol)
+
+# For a graph bisection (or multisection) problem, this would be a very
+# reasonable outcome.
+
+# But we don't have two labels - we have only one kind of label: our driver
+# genes. So we need to figure out a different approach. For example, we could
+# say that at every step in which we do not encounter a driver node, the random
+# walk could be absorbed with probability p by the background. Here is an
+# implementation - with a bit of a speedup: rather than compute the expensive
+# neighborhood calculation every time, we precompute neighborhoods for each node
+# in G once, and store them in a list:
+
+catD <- V(G)$driver
+driverLabelCol <- scoreCol(as.numeric(catD))
+plotG(G, Gxy, driverLabelCol)
+
+neiList <- list()
+for (i in 1:vcount(G)) {
+  pBar(i, vcount(G))
+  neiList[[i]] <- as.numeric(neighbors(G, V(G)[i]))
+}
+
+
+set.seed(11235)
+nWalks = 21
+p <- 0.1
+for (i in 1:vcount(G)) {  # for each node in G
+  pBar(i, vcount(G))
+  if (! catD[i]) {  # node is not a driver
+    nD  <- 0
+    nBg <- 0
+    for (j in 1:nWalks) {
+      v <- i   # initialize current node
+      while(! catD[v] && runif(1) > p) { # continue as long as we don't hit a
+                                         # driver node or are absorbed by
+                                         # background
+        nei <- neiList[[i]]       # neighbors of current node
+        if (length(nei) > 1) {    # if more than one neighbor ...
+          nei <- sample(nei, 1)   # ... pick only one.
+        }
+        v <- nei                  # update current node
+      } # end while: we have been absorbed
+      if (catD[v]) { # count it
+        nD <- nD + 1
+      } else {
+        nBg <- nBg + 1
+      }
+    } # end for nWalks: decide
+    if (nD > nBg) {
+      driverLabelCol[i] <- "#DD000033" # transparent color for driver-related
+    }
+  }
+}
+
+# How have the labels propagated?
+plotG(G, Gxy, driverLabelCol)
+
+# Again - not unreasonable for a representation of a locally increased density
+# of driver genes. If you look carefully, you can find nodes that are neighbors
+# to driver genes, but _not_ labelled, because they are embedded in a high
+# density of background.
+
+# However, not all driver genes have the same importance and in order to
+# propagate real-valued scores we need to look at attribute propagation.
+
+
+# ==== ATTRIBUTE PROPAGATION ===================================================
+
+# The common way to model attribute propagation is by diffusion, and diffusion
+# can by modeled by a simple random walk. Assume we have an attribute valued as
+# 1.0 on a particular vertex. Let's call this attribute "heat" to make it easier
+# to have some intuition and a mental model about what we are doing. Diffusion,
+# modelled as a random walk, means dividing that heat into a number of portions,
+# walking for a defined number of steps (that number would represent the "time"
+# of a physical diffusion process), and depositing the heat at the node where we
+# end up. Let's illustrate this on our graph. Before we do this, we need to
+# modify our neighbour list to include every node itself in its neighborhood,
+# i.e. our network gets a self-edge at every node. Why? If we would not do this,
+# in a walk of one step, _all_ of the heat would have to move to the node's
+# neighbour(s).
+
+for (i in 1:length(neiList)) {
+  neiList[[i]] <- c(i, neiList[[i]])
+}
+
+# Here is a function to "heat" a vertex/vertices v of G, diffuse the heat over t timesteps, and return the result.
+
+diffuseH <- function(v, t, heat, N = 100) {
+  # neighList and G must exist in global environment.
+  # Arguments:
+  #     v:    indices of vertices to diffuse heat from
+  #     t:    length of each random walk ("time")
+  #     h:    initial heat vector, will be initialized to heat of 1
+  #              for each v if missing.
+  #     N:    N * t is the number of walks, smoothing the stochastic result
+  #
+  # Note: since we know that the lenght of the neighbor list of each vertex
+  #       is always greater than one, we can simplify the code to select
+  #       our next step from our previous walking code.
+  # Value:
+  #     heat vector for all vertices of G, scaled to set the maximum value
+  #     to 1.0
+
+  if (missing(heat)) {
+    # initialize heat vector with heat of 1.0 on each element of v
+    heat <- numeric(vcount(G))  # initialize
+    heat[v] <- 1.0              # add heat
+  }
+  nWalks <- N * t
+  for (thisV in v) {                   # do for each node in v
+    dH <- heat[thisV] / nWalks         # size of heat portion
+    for (i in 1:nWalks) {
+      heat[thisV] <- heat[thisV] - dH  # pick up heat portion
+      currV <- thisV                   # start at thisV
+      for (j in 1:t) {                 # walk for t random steps
+        currV <- sample(neiList[[currV]], 1)
+      } # end walking
+      heat[currV] <- heat[currV] + dH # deposit heat portion
+    }
+  }
+  heat <- heat / max(heat)  # rescale for better visibility
+  return(heat)
+}
+
+
+plotG(G, Gxy, scoreCol(diffuseH(v = 3, t = 1)))
+plotG(G, Gxy, scoreCol(diffuseH(v = 3, t = 2)))
+plotG(G, Gxy, scoreCol(diffuseH(v = 3, t = 3)))
+plotG(G, Gxy, scoreCol(diffuseH(v = 3, t = 4)))
+plotG(G, Gxy, scoreCol(diffuseH(v = 3, t = 5)))
+plotG(G, Gxy, scoreCol(diffuseH(v = 3, t = 6)))
+plotG(G, Gxy, scoreCol(diffuseH(v = 3, t = 7)))
+plotG(G, Gxy, scoreCol(diffuseH(v = 3, t = 8)))
+plotG(G, Gxy, scoreCol(diffuseH(v = 3, t = 9)))
+
+# Notice that as the length of the walk increases, heat gets concentrated in
+# densely connected regions - this is where the random walk easily gets
+# "trapped".
+
+plotG(G, Gxy, scoreCol(diffuseH(v = 3, t = 30)))
+
+
+# Here is what happens when we have multiple nodes - our driver genes:
+plotG(G, Gxy, scoreCol(diffuseH(v = which(V(G)$driver), t = 1)))
+plotG(G, Gxy, scoreCol(diffuseH(v = which(V(G)$driver), t = 2)))
+plotG(G, Gxy, scoreCol(diffuseH(v = which(V(G)$driver), t = 3)))
+
+
+
+# ==== OncodriveFM scores as "heat"
+
+# We know that not all driver gene mutations are equally significant - i.e. the
+# amount of "heat" on each gene is not the same. For example, we can use the
+# Oncodrive score in the IntOGen table as "heat":
+
+
+head(intogenDrivers)
+# "CS" mutations are coding sequence mutations, "PAM" are protein affecting
+# mutations. Signal types are C (Clustered), F (Functional), and R (Recurrent
+# mutations). For Oncodrive scores, see here:
+# http://bg.upf.edu/group/projects/oncodrive-fm.php
+
+
+# === Preparing attributes
+
+# Let's look at the score distributions, and what scores we find in the genes in
+# our network:
+
+# get an ordering vector, that orders the intogen table by Oncodrive scores
+ord <- order(intogenDrivers$ONCODRIVE_ROLE, decreasing = TRUE)
+
+# get a color vector for all driver genes
+myCol <- scoreCol(intogenDrivers$ONCODRIVE_ROLE[ord])
+
+# plot all driver gene scores
+plot(intogenDrivers$ONCODRIVE_ROLE[ord],
+     type = "l", ylab = "OncodriveFM score",
+     main = "Driver scores (all, and in G)")
+
+# add a color scale to the y-axis
+N <- 20
+yBreaks <- seq(0, 1, length.out = N + 1)
+for (i in 1:N) {
+  rect(par("usr")[1],
+       yBreaks[i],
+       par("usr")[1] / 2,
+       yBreaks[i + 1],
+       col = scoreCol(mean(c(yBreaks[i], yBreaks[i+1]))),
+       border = NA)
+}
+
+# collect the driver gene names
+namDG <- V(G)$name[V(G)$driver]
+
+# add the driver gene labels to the plot
+for (i in 1:nrow(intogenDrivers)) {
+  if ((intogenDrivers$SYMBOL[ord])[i] %in% namDG) {
+    # gene symbol
+    text(i,
+         (intogenDrivers$ONCODRIVE_ROLE[ord])[i],
+         labels = (intogenDrivers$SYMBOL[ord])[i],
+         cex = 0.7)
+    # horizontal line
+    points(c(par("usr")[1], i),
+           rep((intogenDrivers$ONCODRIVE_ROLE[ord])[i], 2),
+           type = "l",
+           col = myCol[i],
+           lwd = 0.7)
+  }
+}
+
+# This plot shows where the scores for driver genes in G fall in the global
+# distribution of scores. Let's add the scores as attributes to our graph.
+
+gScores <- rep(0.0, vcount(G))  # vector of zero scores
+
+for (i in which(V(G)$driver)) {
+  # overwrite gScores[i] with driver gene score
+  dName <- V(G)$name[i]
+  iInto <- which(intogenDrivers$SYMBOL == dName)
+  gScores[i] <- intogenDrivers$ONCODRIVE_ROLE[iInto]
+}
+G <- set_vertex_attr(G, "oncodrive", value = gScores )
+
+# With this, we can replot our network, coloring the nodes with the score-color
+# scale we defined above.
+
+plotG(G, Gxy, scoreCol(V(G)$oncodrive))
+
+
+# === Propagating attributes by diffusion
+
+# Now we can propagate these values ...
+hO <- V(G)$oncodrive
+vD <- which(V(G)$driver)
+plotG(G, Gxy, scoreCol(diffuseH(v = vD, t = 1, heat = hO)))
+plotG(G, Gxy, scoreCol(diffuseH(v = vD, t = 2, heat = hO)))
+plotG(G, Gxy, scoreCol(diffuseH(v = vD, t = 3, heat = hO)))
+plotG(G, Gxy, scoreCol(diffuseH(v = vD, t = 4, heat = hO)))
+plotG(G, Gxy, scoreCol(diffuseH(v = vD, t = 5, heat = hO)))
+
+plotG(G, Gxy, scoreCol(diffuseH(v = vD, t = 20, heat = hO)))
+
+# What difference between unit-heat and score based heat?
+plotG(G, Gxy, scoreCol(diffuseH(v = vD, t = 3)))             # unit heat
+plotG(G, Gxy, scoreCol(diffuseH(v = vD, t = 3, heat = hO)))  # scores
+
+
+# As you see, there are differences in the details of distribution, which
+# presumably reflect the underlying biology better. Regarding the global
+# distribution we see that diffusing for a few steps identifies related nodes,
+# modulated by the topology of the network. But diffusing for too many steps
+# concentrates most of the heat in the densely connected clusters and in the
+# nodes with high betweeness centrality ("hubs"). For short times, the heat
+# distribution is dominated by the initial heat at time zero. For long times,
+# the heat distribution is dominated by the topology of the network. We need to
+# keep this in mind when we use attribute diffusion to define subnetworks.
+
+
+
+# ==============================================================================
+#        PART SEVEN: ATTRIBUTE PROPAGATION, EDGE WEIGHTS AND SUBNETWORKS
+# ==============================================================================
+
+# Are there subnetworks of our graph that are important for the cancer
+# phenotype?
+
+# TBC
+#
+#
+#
+
+# ==============================================================================
+#        PART EIGHT: OUTLOOK
 # ==============================================================================
 
 # There are many more functions for graph and network analysis that this
@@ -944,7 +1509,8 @@ for (ID in ENSPsel) {
 
 ?motifs           # to find network motifs
 ?neighbors        # to find neighbors
-?neighborhood     # to find nodes that are not further than a given distance from a center
+?neighborhood     # to find nodes that are not further than a given
+                  #    distance from a center
 
 
 # Then you should know about the following packages. There is an extensive set
