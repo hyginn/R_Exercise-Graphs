@@ -2,11 +2,12 @@
 #
 # Purpose:  Exercises for working with graphs in R.
 #
-# Version: 1.3
+# Version: 1.4
 #
 # Date:    2016  02  05
 # Author:  Boris Steipe
 #
+# V 1.4    add HotNet subnetwork discovery example
 # V 1.3    Update from 2016 "Function" code; add heat-diffusion example
 # V 1.2    Typos
 # V 1.1    Added a biomaRt section
@@ -1148,7 +1149,7 @@ barplot(rep(1, 20), col = scoreCol(seq(0, 1, length.out = 20)),
 
 
 # Next we define a convenient plotting function:
-plotG <- function(G, Gxy, myCol) {
+plotG <- function(G, Gxy, myVcol = "#FFFFDD", myEcol = "#AAAAAA") {
   oMar <- par("mar")
   par(mar = rep(0,4)) # Turn margins off
   plot(G,
@@ -1156,7 +1157,8 @@ plotG <- function(G, Gxy, myCol) {
        rescale = FALSE,
        xlim = c(min(Gxy[,1]), max(Gxy[,1])) * 1.1,
        ylim = c(min(Gxy[,2]), max(Gxy[,2])) * 1.1,
-       vertex.color = myCol,
+       vertex.color = myVcol,
+       edge.color = myEcol,
        vertex.size = 40,
        vertex.label = "",
        edge.arrow.size = 0)
@@ -1488,16 +1490,259 @@ plotG(G, Gxy, scoreCol(diffuseH(v = vD, t = 3, heat = hO)))  # scores
 
 
 # ==============================================================================
-#        PART SEVEN: ATTRIBUTE PROPAGATION, EDGE WEIGHTS AND SUBNETWORKS
+#        PART SEVEN: ATTRIBUTE DIFFUSION, EDGE WEIGHTS AND SUBNETWORKS
 # ==============================================================================
 
 # Are there subnetworks of our graph that are important for the cancer
 # phenotype?
 
+# If we can find subnetworks in our graph that point to some functional
+# relationship, AND find cancer driver genes to be enriched in such a
+# subnetwork, then we could conclude that that entire set of genes somehow
+# collaborates towards an important function. But we can't enumerate all
+# subnetworks - there are far too many -, and even if we did, all statistical
+# power for enrichment would be lost because of the huge multiple testing
+# problem we would then be confronted with. Therefore, it is of interest to
+# discover only subnetworks that have some biological significance. And for this
+# purpose, we can use attribute diffusion. In particular: if we can use
+# attribute diffusion to compute edge-weights, and then remove all edges below a
+# suitable threshold, the network will naturally fall apart into components,
+# which we can then further analyze as subnetworks. The components will then
+# depend on both the network topology, and the "heat" scores which initally
+# label driver genes.
+
+# There are certainly many ways to do this - here we'll discuss the approach
+# taken by the authors of HotNet and HotNet2.
+
+
+# ==== THE HotNet APPROACH =====================================================
+
+# In Hotnet:
+#  - First an edge "influence" is determined based on the amount of "heat"
+#    that flows along the edge if unit heat is placed on either of its vertices.
+#  - Second, an edge weight is determined, by multiplying the influence with
+#    the score of either vertex.
+#  - Finally, edges whose weight falls below a threshold are removed.
+
+# Intuitively, you can imagine that this process is a mix of the short- and long
+# walk regimes we explored above. In particular, it is NOT true that at
+# equilibrium all genes have the same heat, as Vandin et al. claim. (2012, 59).
+# Rather the heat in the network redistributes into densely connected clusters
+# and nodes with a high betweenness centrality.
+
+# You will find that the literature computes such heat diffusion influences via
+# a "heat kernel" which is the matrix exponential of the Laplacian matrix of the
+# graph. This procedure assumes unweighted, undirected graphs. Therefore we will
+# continue simply estimating the required values from random walks, which can
+# trivially be adapted to weighted, directed graphs with all manners of
+# additional enhancements.
+
+# We could query and update edge attributes within iGraph, but for efficiency
+# and explicitness we will work on the adjacency matrix in what follows. That's
+# no problem since our demo-network is tiny with 100 vertices and 1,010 edges.
+# Just as an aside, note that in general, for genome scale networks with OTO
+# 10e04 vertices and 10e05 edges, a regular adjacency matrix becomes too large.
+# However this is a _very_ sparse matrix, as the matrix grows with |V|^2 but |E|
+# only grows with k*|V| where k is on the order of 10. Therefore we need to work
+# with sparse matrix data structures - from the R "matrix" package, as supported
+# by igraph, whose size scales with |E|.
+
+# The adjacency matrix:
+A <- as_adjacency_matrix(G, type = "both")
+str(A)
+
+# print one row ...
+A[which(names(V(G)) == "EIF4A3"), ]
+
+# Degree of this node:
+sum(A[which(names(V(G)) == "EIF4A3"), ] == 1)
+
+# (You can count to confirm ...)
+
+# ==== Calculating "influence"
+
+# If we take "influence" between two vertices (u, v) to be the amount of heat
+# that arrives on a vertex v after a time t if unit heat is placed on vertex u.
+# Note that we are only interested in (u, v) that have an edge between them. So we can simply run a number of random walks of length t for each vertex u, count the number of times we end on a neighbor of u, and divide this by the total number of walks.
+
+# We need a neighbour list  without self-edges
+for (i in 1:vcount(G)) {
+  neiList[[i]] <- as.numeric(neighbors(G, V(G)[i]))
+}
+
+# Let's look at neighbors of vertex 62 (UBC):
+A[62, ]
+sum(A[62, ])
+
+myE <- numeric(vcount(G))
+thisV <- 62
+t <- 7
+nWalks <- 100
+for (i in 1:nWalks) {
+  currV <- thisV              # start at thisV
+  for (j in 1:t) {            # walk for t random steps
+    nei <- neiList[[currV]]   # neighbors of current node
+    if (length(nei) > 1) {    # if more than one neighbour ...
+      nei <- sample(nei, 1)   # ... pick only one.
+    }
+    currV <- nei                  # update current node
+  } # end walking
+  myE[currV] <- myE[currV] + 1
+}
+
+# Result:
+head(myE, 10)
+
+# Scale:
+myE <- myE / nWalks
+head(myE, 10)
+
+# Keep only values of neighbour edges by multypling myE with the row of the
+# adjacency matrix:
+myE <- myE * A[thisV, ]
+
+# Plot the result:
+
+# Vertex colors:
+vc <- rep("#FFFFDD", vcount(G))
+vc[thisV] <- "#DD0000"
+
+# make a vector of vertex pairs to select edges. (see: ?E)
+nei <- which(as.logical(A[thisV, ]))
+( myP <- c(rbind(thisV, nei)) ) # analyze this!
+# add the reverse edges too
+( myP <- c(myP, c(rbind(nei, thisV))) ) # analyze this too!
+
+# baseline color ...
+E(G)$influence <- 0.05
+# Influences (scaled)
+E(G, P = myP)$influence <- c(myE[nei], myE[nei]) / max(myE[nei])
+# map to to color values
+ec <- scoreCol(E(G)$influence)
+
+plotG(G, Gxy, myVcol = vc, myEcol = ec)
+
+# Note how the influences are weaker on nodes that have a high probability that
+# paths passing through them will not return.
+
+# To calculate all influences, we simly repeat what we have done above in a
+# loop. We store the values in an adjacency matrix H.
+
+H <- A
+
+t <- 5
+nWalks <- 100
+for (i in 1:vcount(G)){
+  pBar(i, vcount(G))
+  thisV <- i
+  H[thisV, ] <- numeric(vcount(G))
+  for (i in 1:nWalks) {
+    currV <- thisV              # start at thisV
+    for (j in 1:t) {            # walk for t random steps
+      nei <- neiList[[currV]]   # neighbors of current node
+      if (length(nei) > 1) {    # if more than one neighbour ...
+        nei <- sample(nei, 1)   # ... pick only one.
+      }
+      currV <- nei                  # update current node
+    } # end walking
+    H[thisV, currV] <- H[thisV,currV] + 1
+  }
+  H[thisV, ] <- H[thisV, ] / nWalks       # scale
+  H[thisV, ] <- H[thisV, ] * A[thisV, ]   # remove counts for non-neighbours
+}
+
+# ... a subset of the results.
+H[1:15, 1:15]
+
+# Note that the matrix is not symmetric and H(u, v) is usually not the same as
+# H(v, u). Vandin et al. (2012) make the adjacency matrix symmetric by selecting
+# min(H(u, v), H(v, u)) for both edges, ... but that seems debatable to me.
+# Let's reproduce this anyway.
+
+for (u in 1:(vcount(G) - 1)) {
+  for (v in (u + 1):vcount(G)) {
+    if (H[u, v] != 0 || H[v, u] != 0) {
+      h <- min(H[u, v], H[v, u])
+      H[u, v] <- h
+      H[v, u] <- h
+    }
+  }
+}
+
+H[1:15, 1:15]
+max(H)
+
+# Next we update the edge weights by taking scores into account. HotNet simply
+# multiplies the values from H with the max of the scores of the two vertices
+# that share the edge. We have stored the OncodriveFM stores in:
+head(V(G)$oncodrive)
+
+W <- H
+
+for (u in 1:(vcount(G) - 1)) {
+  for (v in (u + 1):vcount(G)) {
+    if (W[u, v] != 0) {
+      s <- max(V(G)$oncodrive[c(u, v)]) * H[u, v]
+      W[u, v] <- s
+      W[v, u] <- s
+    }
+  }
+}
+
+# for display purpose, we rescale W:
+W <- W / max(W)
+
+# Done. Need to convert this to a list of edge colors to plot. Just a bit of bookkeeping ...
+
+# baseline color ...
+E(G)$weight <- 0.03
+
+# build a vector of vertices that share edges, and a vector of weights
+
+vP <- numeric()
+vW <- numeric()
+
+for (u in 1:(vcount(G) - 1)) {
+  for (v in (u + 1):vcount(G)) {
+    if (W[u, v] != 0) {
+      vP <- c(vP, u, v, v, u)        # vertex pairs
+      vW <- c(vW, W[u, v], W[u, v])  # weights
+    }
+  }
+}
+
+# set edge attributes
+E(G, P = vP)$weight <- vW
+
+# map to to color values
+ec <- scoreCol(unlist(E(G)$weight), N = 100)
+
+plotG(G, Gxy, myVcol = vc, myEcol = ec)
+
+# Easy to see that we could now delete all vertices that don't, say, share an edge with a weight >= 0.2 ...
+
+G2 <- G                                      # make a copy
+sel <- which(E(G2)$weight < 0.2)             # select edges below threshold ...
+G2 <- delete_edges(G2, sel)                  # ... and delete them.
+sel <- which(degree(G2) == 0)                # select disconnected vertices ...
+G2 <- delete_vertices(G2, sel)               # ... and delete them
+G2xy <- Gxy[-sel, ]                          # ... and delete their layout x, y
+vc <- scoreCol(V(G)$oncodrive)               # update vertex colors
+ec <- scoreCol(unlist(E(G)$weight), N = 100) # update edge colors
+
+plotG(G2, G2xy, myVcol = vc, myEcol = ec)
+
+# Done ... here are our subnetworks.
+components(G2)
+
+
+# ==== THE HotNet2 APPROACH ====================================================
+
+
 # TBC
-#
-#
-#
+
+
+
 
 # ==============================================================================
 #        PART EIGHT: OUTLOOK
