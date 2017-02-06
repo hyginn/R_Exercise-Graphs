@@ -1525,10 +1525,8 @@ plotG(G, Gxy, scoreCol(diffuseH(v = vD, t = 3, heat = hO)))  # scores
 #  - Finally, edges whose weight falls below a threshold are removed.
 
 # Intuitively, you can imagine that this process is a mix of the short- and long
-# walk regimes we explored above. In particular, it is NOT true that at
-# equilibrium all genes have the same heat, as Vandin et al. claim. (2012, 59).
-# Rather the heat in the network redistributes into densely connected clusters
-# and nodes with a high betweenness centrality.
+# walk regimes we explored above, emphasizing the "influence" of densely
+# connected clusters and nodes with high betweenness centraility.
 
 # You will find that the literature computes such heat diffusion influences via
 # a "heat kernel" which is the matrix exponential of the Laplacian matrix of the
