@@ -1731,6 +1731,9 @@ vc <- scoreCol(V(G)$oncodrive)               # update vertex colors
 ec <- scoreCol(unlist(E(G)$weight), N = 100) # update edge colors
 
 plotG(G2, G2xy, myVcol = vc, myEcol = ec)
+# ... and let's highlight our original driver genes
+sel <- which(V(G2)$driver)
+points(G2xy[sel, ], pch = 19, cex = 2, col = "#DD000044")
 
 # Done ... here are our subnetworks.
 components(G2)
