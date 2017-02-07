@@ -2,11 +2,13 @@
 #
 # Purpose:  Exercises for working with graphs in R.
 #
-# Version: 1.4
+# Version: 1.5
 #
-# Date:    2016  02  05
+# Date:    2016  02  06
 # Author:  Boris Steipe
 #
+# V 1.5    add HotNet2 subnetwork discovery example and code for an alternative,
+#             "non equilibrium diffusion" approach.
 # V 1.4    add HotNet subnetwork discovery example
 # V 1.3    Update from 2016 "Function" code; add heat-diffusion example
 # V 1.2    Typos
@@ -1717,7 +1719,8 @@ ec <- scoreCol(unlist(E(G)$weight), N = 100)
 
 plotG(G, Gxy, myVcol = vc, myEcol = ec)
 
-# Easy to see that we could now delete all vertices that don't, say, share an edge with a weight >= 0.2 ...
+# Easy to see that we could now delete all vertices that don't, say, share an
+# edge with a weight >= 0.2 ...
 
 G2 <- G                                      # make a copy
 sel <- which(E(G2)$weight < 0.2)             # select edges below threshold ...
@@ -1739,8 +1742,377 @@ components(G2)
 
 # ==== THE HotNet2 APPROACH ====================================================
 
+# You may have noticed (as the HotNet authors did), that not all of our
+# subnetworks model our intuition about sets of collaborating genes with
+# enriched driver genes. Two ouf our subnetworks have only a single driver gene
+# and one of those contains  10 other genes as leaves in a star topology. We
+# would expect a significant number of "false positive" genes among these. To
+# avoid this problem, the authors of HotNet2 propose a different model in which
+# hot genes retain a part of their heat ("insulation") by restarting the random
+# diffusion walks at their source with an adjustable probability. This focusses
+# heat more strongly on the original sources, rather than trapping it in
+# clusters and high-betweenness nodes. Further, heat flux between nodes is not
+# symmetric, and HotNet2 retains edges only if the flux in BOTH directions
+# surpasses the threshold.
 
-# TBC
+# Let's explore the insulated heat diffusion process first. We modify our
+# function diffuseH().
+
+
+insDiffH <- function(v, t, b, heat, N = 100) {
+  # Insulated heat diffusion
+  # neighList and G must exist in global environment.
+  # Arguments:
+  #     v:    indices of vertices to diffuse heat from
+  #     t:    length of each random walk ("time")
+  #     b:    probability governing restart
+  #     h:    initial heat vector, will be initialized to heat of 1
+  #              for each v if missing.
+  #     N:    N * t is the number of walks, smoothing the stochastic result
+  #
+  # Note: Elements of neiList must contain more than one vertex, otherwise
+  #       sample will do its terrrible thing and sample from 1:v.
+  # Value:
+  #     heat vector for all vertices of G, scaled to set the maximum value
+  #     to 1.0
+
+  if (missing(heat)) {
+    # initialize heat vector with heat of 1.0 on each element of v
+    heat <- numeric(vcount(G))  # initialize
+    heat[v] <- 1.0              # add heat
+  }
+  nWalks <- N * t
+  for (thisV in v) {                   # do for each node in v
+    dH <- heat[thisV] / nWalks         # size of heat portion
+    for (i in 1:nWalks) {
+      heat[thisV] <- heat[thisV] - dH  # pick up heat portion
+      currV <- thisV                   # start at thisV
+      for (j in 1:t) {                 # walk for t random steps
+        if (runif(1) < (1 - b)) {      # With probability 1 - b ...
+          currV <- sample(neiList[[currV]], 1) # ... move to next vertex, ...
+        } else {
+          currV <- thisV               # ... or restart at beginning.
+        }
+      } # end walking
+      heat[currV] <- heat[currV] + dH # deposit heat portion
+    }
+  }
+  heat <- heat / max(heat)  # rescale for better visibility
+  return(heat)
+}
+
+# Let's build our neigborlist again.
+neiList <- list()
+for (i in 1:vcount(G)) {
+  pBar(i, vcount(G))
+  neiList[[i]] <- c(i, as.numeric(neighbors(G, V(G)[i])))
+}
+
+# Explore ...
+
+plotG(G, Gxy, scoreCol(insDiffH(v = 3, t = 5, b = 0)))
+plotG(G, Gxy, scoreCol(insDiffH(v = 3, t = 5, b = 0.01)))
+plotG(G, Gxy, scoreCol(insDiffH(v = 3, t = 5, b = 0.02)))
+plotG(G, Gxy, scoreCol(insDiffH(v = 3, t = 5, b = 0.05)))
+plotG(G, Gxy, scoreCol(insDiffH(v = 3, t = 5, b = 0.1)))
+plotG(G, Gxy, scoreCol(insDiffH(v = 3, t = 5, b = 0.2)))
+plotG(G, Gxy, scoreCol(insDiffH(v = 3, t = 5, b = 0.5)))
+
+plotG(G, Gxy, scoreCol(insDiffH(v = 3, t = 15, b = 0)))
+plotG(G, Gxy, scoreCol(insDiffH(v = 3, t = 15, b = 0.01)))
+plotG(G, Gxy, scoreCol(insDiffH(v = 3, t = 15, b = 0.02)))
+plotG(G, Gxy, scoreCol(insDiffH(v = 3, t = 15, b = 0.05)))
+plotG(G, Gxy, scoreCol(insDiffH(v = 3, t = 15, b = 0.1)))
+plotG(G, Gxy, scoreCol(insDiffH(v = 3, t = 15, b = 0.2)))
+plotG(G, Gxy, scoreCol(insDiffH(v = 3, t = 15, b = 0.5)))
+
+# 100 time steps is slow, but bear with it ...
+plotG(G, Gxy, scoreCol(insDiffH(v = 3, t = 100, b = 0)))
+plotG(G, Gxy, scoreCol(insDiffH(v = 3, t = 100, b = 0.01)))
+plotG(G, Gxy, scoreCol(insDiffH(v = 3, t = 100, b = 0.02)))
+plotG(G, Gxy, scoreCol(insDiffH(v = 3, t = 100, b = 0.05)))
+plotG(G, Gxy, scoreCol(insDiffH(v = 3, t = 100, b = 0.1)))
+plotG(G, Gxy, scoreCol(insDiffH(v = 3, t = 100, b = 0.2)))
+plotG(G, Gxy, scoreCol(insDiffH(v = 3, t = 100, b = 0.5)))
+
+# You will notice that restarting the walk has a  similar effect to walking for
+# shorter paths in the first place - i.e. not letting the walk go to
+# equilibrium ...
+plotG(G, Gxy, scoreCol(insDiffH(v = 3, t = 100, b = 0.05)))
+plotG(G, Gxy, scoreCol(insDiffH(v = 3, t = 7, b = 0)))
+
+# ... but it does focus heat more strongly on the originating node. In this
+# sense it is more similar to an actual diffusion process, which we could model
+# by equilibrating the heat between two nodes sharing an edge by a bit.
+
+# Let's see what this looks like if we use all driver genes:
+hO <- V(G)$oncodrive        # scores
+vD <- which(V(G)$driver)    # indices of driver genes
+xyD <- Gxy[vD, ]           # coordinates, to highlight driver genes
+
+# This is slow. Patience. We are walking |vD| * t * N = one million steps.
+plotG(G, Gxy, scoreCol(insDiffH(v = vD, t = 100, b = 0.2)))
+points(xyD, pch = 19, cex = 2.5, col = "#EEAA0033")
+
+# What does this look like if we use oncodriver scores?
+plotG(G, Gxy, scoreCol(insDiffH(v = vD, t = 100, b = 0.2, heat = hO)))
+points(xyD, pch = 19, cex = 2.5, col = "#EEAA0033")
+
+# This does not look very different from previous distributions. Though the
+# diffusion model is not bad, emphasizing the importance of high-betweenness
+# nodes even if these are not functionally important (e.g. UBC), or lead to
+# star-like subnetworks (e.g. POLR2B) lies in the nature of the network
+# topology. However, TP53 had a very low OncodriverFM score, and now is solidly found to be important.
+
+# What in addition does the consideration of edge-selection contribute? We can
+# estimate the effect likewise not to be dramatic since still all driver nodes'
+# neighbors have themselves significant heat to share. But let's see. The code
+# to simulate the "Diffusion Matrix" is here ...
+
+A <- as_adjacency_matrix(G, type = "both")
+H <- A
+
+t <- 100
+b <- 0.2
+nWalks <- 100
+
+for (i in 1:vcount(G)){
+  pBar(i, vcount(G))
+  thisV <- i
+  H[thisV, ] <- numeric(vcount(G))
+  for (i in 1:nWalks) {
+    currV <- thisV              # start at thisV
+    for (j in 1:t) {            # walk for t random steps
+      if (runif(1) < (1 - b)) {   # With probability 1 - b ...
+        nei <- neiList[[currV]]   # ... pick from neighbors of current node
+        if (length(nei) > 1) {
+          nei <- sample(nei, 1)
+        }
+        currV <- nei
+      } else {
+        currV <- thisV            # ... or restart at beginning.
+      }
+    } # end walking
+    H[thisV, currV] <- H[thisV,currV] + 1 # Here is where we stopped.
+  }
+  H[thisV, ] <- H[thisV, ] / nWalks       # scale
+  H[thisV, ] <- H[thisV, ] * A[thisV, ]   # remove counts for non-neighbours
+}
+
+H[1:15, 1:15]
+max(H)
+
+# By the nature of how this was constructed, the matrix represents heat
+# diffusion and in particular, if a unit of heat is placed on a node i, the
+# elements in H[i, j] tell us how much of that heat ends up in nodes j that are
+# neighbours of i. Leiserson et al. (2015, Online Methods) next define an
+# "Exchanged Heat" matrix, that quantifies how much heat passes between nodes i
+# and j by post-multiplying the diffusion matrix with a diagonal matrix that
+# holds the heat scores. Post-multiplying a matrix with a diagonal matrix means
+# multiplying the j-th column with the j-th element of the heat vector - in our
+# case hO:
+
+mE <- H
+for (j in 1:ncol(mE)) {
+  mE[ , j] <- mE[ , j] * hO[j]
+}
+
+mE[1:15, 1:15]
+max(mE)
+sum(mE > 0)
+
+# The procedure next calls to detect strongly connected subgraphs after applying
+# a threshold to the edges - strongly connected means: both edge weights w(u, v)
+# and w(v, u) should exceed the threshold. For our purposes, this means we take
+# the edge-weight to be min(w(u, v), w(v, u)):
+
+for (u in 1:(vcount(G) - 1)) {
+  for (v in (u + 1):vcount(G)) {
+      mE[u, v] <- min(mE[u, v], mE[v, u])
+      mE[v, u] <- min(mE[u, v], mE[v, u])
+  }
+}
+
+sum(mE > 0)
+
+# Let's rescale the matrix ...
+mE <- mE/max(mE)
+
+# ... and plot:
+
+E(G)$weight <- 0.03
+vP <- numeric()
+vE <- numeric()
+
+for (u in 1:(vcount(G) - 1)) {
+  for (v in (u + 1):vcount(G)) {
+    if (mE[u, v] != 0) {
+      vP <- c(vP, u, v, v, u)          # vertex pairs
+      vE <- c(vE, mE[u, v], mE[u, v])  # weights
+    }
+  }
+}
+
+# lets add a minimum offset to the remaining edges, for easier visualization:
+vE <- (vE * 0.7) + 0.3
+
+# set edge attributes
+E(G, P = vP)$weight <- vE
+
+# map to to color values
+ec <- scoreCol(unlist(E(G)$weight), N = 100)
+
+plotG(G, Gxy, myVcol = scoreCol(hO), myEcol = ec)
+
+# Again, delete all vertices that don't have an edge anymore ...
+
+G2 <- G                                      # make a copy
+sel <- which(E(G2)$weight < 0.2)             # select edges below threshold ...
+G2 <- delete_edges(G2, sel)                  # ... and delete them.
+sel <- which(degree(G2) == 0)                # select disconnected vertices ...
+G2 <- delete_vertices(G2, sel)               # ... and delete them
+G2xy <- Gxy[-sel, ]                          # ... and delete their layout x, y
+vc <- scoreCol(V(G)$oncodrive)               # update vertex colors
+ec <- scoreCol(unlist(E(G)$weight), N = 100) # update edge colors
+
+plotG(G2, G2xy, myVcol = vc, myEcol = ec)
+# ... and let's highlight our original driver genes
+sel <- which(V(G2)$driver)
+points(G2xy[sel, ], pch = 19, cex = 2, col = "#DD000044")
+
+# Done ... here are our subnetworks.
+components(G2)
+
+# Obviously - the procedure as implemented here can only retain driver genes,
+# since all non-driver genes have values of 0 in the heat vector, and thus are
+# eliminated when we calculate the diffusion matrix with the heat vector. Is
+# this what Leiserson et al. (2015) did? I don't think so. But that's how they
+# describe it in their paper. Anyway: this should illustrate in principle how
+# subnetwork discovery works.
+
+
+# ==== ALTERNATIVE APPROACH: NON-EQUILIBRIUM DIFFUSION =========================
+
+# But let's entertain another approach, just for fun: what if we simulate
+# _actual_ heat diffusion on the network? By this I mean heat flux should depend
+# on the temperature difference between two nodes. And we don't simulate until
+# we expect equilibrium, but stop earlier, while hot nodes are still hot. This
+# is a very simple procedure, and actually quite fast.
+
+# First, we build a matrix with which we can efficiently select edges and let
+# heat flow along them. Begin with a matrix of edge pair indices:
+eMat <- ends(G, E(G), names = FALSE)
+
+# For efficiency, add a column that holds the index of the reverse edge:
+eMat <- cbind(eMat, numeric(nrow(eMat)))
+for (i in 1:nrow(eMat)) {
+  eMat[i, 3] <- which(eMat[ , 1] == eMat[i, 2] & eMat[ , 2] == eMat[i, 1])
+}
+
+# Add a column to store heat flux:
+eMat <- cbind(eMat, numeric(nrow(eMat)))
+colnames(eMat) <- c("v1", "v2", "rev", "flux")
+
+head(eMat)
+
+
+# Now we write a function that picks edges at random and equilibrates the heat
+# of the connected vertices by a fraction.
+
+flowH <- function(mE, vH, N, f) {
+  # Simulate heatflow in a network.
+  # Arguments:
+  #     mE: an edge index matrix
+  #     vH: a heat vector for initialization
+  #     N:  number of equilibration steps
+  #     f:  fraction of heat difference to be equilibrated at each step
+  nE <- nrow(mE)
+  hOrig <- vH
+  iOrig <- which(hOrig > 0)
+
+  for (i in 1:N) { # run for N steps ...
+    thisE <- sample(1:nE, 1)   # pick a random edge
+    u <- mE[thisE, 1]
+    v <- mE[thisE, 2]
+    dH <- (vH[u] - vH[v]) * f  # (u, v) heat difference fraction
+    vH[u] <- vH[u] - dH   # let it flow, from here ...
+    vH[v] <- vH[v] + dH   # ... to there.
+    mE[thisE, "flux"] <- mE[thisE, "flux"] + dH   # record the flux, and its ...
+    mE[mE[thisE,"rev"],"flux"] <- mE[mE[thisE,"rev"],"flux"]-dH # ... reverse.
+  }
+  # Done equilibrating: stick the new heat vector onto the matrix for output ...
+  mE <- cbind(mE, 0)
+  colnames(mE)[ncol(mE)] <- "heat"
+  mE[1:length(vH), "heat"] <- vH
+  # ... rescale ...
+  mE[, "flux"] <- mE[, "flux"] / max(abs(mE[, "flux"])) # rescale edges
+  mE[, "heat"] <- mE[, "heat"] / max(mE[, "heat"])      # rescale vertices
+  # ... and return everything
+  return(mE)
+}
+
+# Recall the original heat distributions:
+plotG(G, Gxy, scoreCol(V(G)$oncodrive))
+
+# Let's see where diffusion takes this
+mFlow <- flowH(mE = eMat, vH = V(G)$oncodrive, N = 100000, f = 0.001)
+plotG(G, Gxy,
+      myVcol = scoreCol(mFlow[1:vcount(G), "heat"]),
+      myEcol = scoreCol(abs(mFlow[ , "flux"])))
+points(Gxy[V(G)$driver, ], pch = 1, cex = 2.5, col = "#00AAEE88")
+
+# Note that we have strong flux away from hot nodes with many neighbors. Only
+# hot nodes with relatively low degree retain their heat well. Let's remove
+# edges that don't have both nodes with heat > 0.1 attached, and edges
+# with low flux, say 0.1.
+
+vH <- mFlow[1:length(V(G)$oncodrive), "heat"]
+
+selE <- which((vH[mFlow[ , "v1"]] < 0.1 |
+               vH[mFlow[ , "v2"]] < 0.1 ) |
+              abs(mFlow[ , "flux"]) < 0.1)
+
+G2 <- G                                       # make a copy
+G2 <- delete_edges(G2, selE)                  # delete selected edges.
+plotG(G2, Gxy,
+      myVcol = scoreCol(mFlow[1:vcount(G), "heat"]),
+      myEcol = scoreCol(abs(mFlow[-selE, "flux"])))
+points(Gxy[V(G)$driver, ], pch = 1, cex = 2.5, col = "#00EEAA88")
+
+# remove all vertices with degree 0 and replot
+selV <- which(degree(G2) == 0)                # select disconnected vertices ...
+G2 <- delete_vertices(G2, selV)               # ... and delete them
+G2xy <- Gxy[-selV, ]                          # ... and delete their layout x, y
+plotG(G2, G2xy,
+      myVcol = scoreCol(vH[-selV]),
+      myEcol = scoreCol(abs(mFlow[-selE, "flux"])))
+points(Gxy[V(G)$driver, ], pch = 1, cex = 2.5, col = "#00AAEE88")
+
+components(G2)
+
+# As a result, our very simple-minded approach has picked up the two "hottest"
+# subnetwork, while ignoring vertices that arise from a simple "star-topology".
+# Not too bad.
+
+
+# A final word. In practice, the calculations like in HotNet and HotNet2 and
+# similar are not done with explicit simulation of random walks, but by applying
+# Markov chain theory, which is able to express the steady state distributions
+# by relatively simple matrix algebra. If you wish to learn more about how
+# random walks and Markov chains are related, there are many resources on the
+# web - perhaps this one is a useful starting point:
+# http://www2.math.uu.se/~takis/L/McRw/mcrw.pdf (Takis Konstantopoulos at Umea
+# University, Sweden). However, this introduces a level of abstraction that we
+# have avoided here by explicitly running random walks. The advantage is that
+# explicit random walks are conceptually very simple; we can very easily choose
+# to use undirected or directed matrices, weighted or unweighted edges; we can
+# simulate heat at equilibrium, or at some earlier point; we can introduce
+# higher-order Markov processes; we can simulate diffusion when the driver
+# genes' heat is not depleted (i.e. is a constant source), etc. etc. - such
+# variations are trivial to code, but decidedly not trivial to handle
+# analytically. The downside of explicit simulation is that the simulated paths
+# are not amenable to rigorous proof, and may have poor convergence in large
+# networks.
 
 
 
